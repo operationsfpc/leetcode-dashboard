@@ -122,6 +122,8 @@ if (!maCols.some((c) => c.name === 'college_id')) {
     WHERE college_id IS NULL`);
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_ma_college_ym ON monthly_activity(college_id, ym)');
+// Global key/value settings (e.g. server-sync mode). Not per-college.
+db.exec('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
 // Baseline = the stats captured on a student's FIRST successful sync, so we can
 // show progress (current minus baseline) on every sync afterwards.
 const studentCols = db.prepare('PRAGMA table_info(students)').all();
@@ -157,6 +159,15 @@ export const listColleges = async () =>
        (SELECT COUNT(*) FROM students s WHERE s.college_id = c.id) AS student_count
      FROM colleges c ORDER BY c.name`
   ).all();
+
+// Global settings key/value.
+export const getSetting = async (key) => {
+  const r = db.prepare('SELECT value FROM app_settings WHERE key=?').get(key);
+  return r ? r.value : null;
+};
+export const setSetting = async (key, value) =>
+  db.prepare('INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+    .run(key, value);
 
 export const getCollege = async (id) => db.prepare('SELECT * FROM colleges WHERE id = ?').get(id);
 

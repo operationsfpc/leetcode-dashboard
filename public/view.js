@@ -489,8 +489,9 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
 }));
 
 load();
+// Read-only shared link auto-refresh — 30s (was 5s) to cut bandwidth/egress.
 setInterval(() => {
   if (document.hidden) return;
   if ($('#drawer').classList.contains('open')) return; // don't disrupt an open drawer
   load({ chart: false });
-}, 5000);
+}, 30000);

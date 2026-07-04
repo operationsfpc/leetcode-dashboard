@@ -198,13 +198,16 @@ function animateNumbers() {
   });
 }
 
-// Auto-refresh the student view (incl. the practice list) every 10s.
+// Auto-refresh the student view (incl. the practice list). Kept at 30s (not 10s)
+// to cut bandwidth/egress — completions don't need second-level freshness. Also
+// pauses when the tab isn't visible.
+const STUDENT_REFRESH_MS = 30000;
 setInterval(() => {
   if (!session.studentId) return;                       // not logged in
   if (document.hidden) return;                          // tab not visible
   if ($('#appView').style.display === 'none') return;   // still on login screen
   loadDashboard({ chart: false });
-}, 10000);
+}, STUDENT_REFRESH_MS);
 
 function fmtAgo(iso) {
   if (!iso) return '';

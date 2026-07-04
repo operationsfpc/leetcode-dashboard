@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { store } from './store.js';
 import { parseUsername, parseProblemSlug, fetchProfileStats } from './leetcode.js';
 import { runSync, runSyncStudent, getSyncState } from './sync.js';
+import { getSyncCfg, setSyncCfg } from './scheduler.js';
 import { ingestResults } from './ingest.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -751,6 +752,17 @@ router.post('/sync', (req, res) => {
 });
 
 router.get('/sync/state', (req, res) => res.json(getSyncState()));
+
+// Server-sync mode (admin controls whether/when the LeetCode scraper runs).
+router.get('/sync-settings', (req, res) => res.json(getSyncCfg()));
+router.post('/sync-settings', h(async (req, res) => {
+  const mode = req.body?.mode;
+  if (!['on', 'off', 'scheduled'].includes(mode)) return res.status(400).json({ error: 'mode must be on|off|scheduled' });
+  const from = (req.body?.from || '').trim();
+  const to = (req.body?.to || '').trim();
+  const cfg = await setSyncCfg({ mode, from, to });
+  res.json(cfg);
+}));
 
 // ---- Chrome-extension integration ------------------------------------------
 

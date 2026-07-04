@@ -82,6 +82,14 @@ export async function getCollege(id) {
   return rows[0];
 }
 
+export async function getSetting(key) {
+  const { rows } = await q('SELECT value FROM app_settings WHERE key=$1', [key]);
+  return rows[0] ? rows[0].value : null;
+}
+export async function setSetting(key, value) {
+  await q('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value', [key, value]);
+}
+
 export async function deleteCollege(id) {
   await q('DELETE FROM colleges WHERE id=$1', [id]); // cascades via FK ON DELETE CASCADE
 }

@@ -1245,6 +1245,7 @@ async function adminLogin() {
     $('#adminUser').value = '';
     $('#adminLogout').style.display = 'inline-block';
     loadColleges();
+    loadSyncSettings();
   } catch (e) { setMsg('#adminLoginMsg', e.message, 'err'); }
 }
 $('#adminLoginBtn').addEventListener('click', adminLogin);
@@ -1267,6 +1268,7 @@ $('#adminLogout').addEventListener('click', async () => {
   if (authRequired && !adminToken()) { showAdminLogin(); return; }
   if (authRequired) $('#adminLogout').style.display = 'inline-block';
   loadColleges();
+  loadSyncSettings();
 })();
 
 // ---- Auto-refresh mode: on | off | scheduled (off/off-hours saves egress) ----
@@ -1315,6 +1317,25 @@ function wireArTime(id, key, set) {
 wireArTime('#arFrom', 'lc_ar_from', (v) => { arFrom = v; });
 wireArTime('#arTo', 'lc_ar_to', (v) => { arTo = v; });
 updateAutoRefreshUI();
+
+// ---- Server-sync control (on / off / scheduled) — persisted server-side -----
+async function loadSyncSettings() {
+  let cfg;
+  try { cfg = await api('/sync-settings'); } catch { return; }
+  const sel = $('#syncMode'); if (sel) sel.value = cfg.mode || 'on';
+  const f = $('#syncFrom'), t = $('#syncTo'); if (f) f.value = cfg.from || ''; if (t) t.value = cfg.to || '';
+  const sched = $('#syncSchedule'); if (sched) sched.style.display = (cfg.mode === 'scheduled') ? 'inline-flex' : 'none';
+}
+async function saveSyncSettings() {
+  const mode = $('#syncMode').value;
+  const from = $('#syncFrom').value, to = $('#syncTo').value;
+  $('#syncSchedule').style.display = (mode === 'scheduled') ? 'inline-flex' : 'none';
+  try { await api('/sync-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, from, to }) }); }
+  catch (e) { alert('Could not save sync setting: ' + e.message); }
+}
+$('#syncMode')?.addEventListener('change', saveSyncSettings);
+$('#syncFrom')?.addEventListener('change', saveSyncSettings);
+$('#syncTo')?.addEventListener('change', saveSyncSettings);
 
 // Auto-refresh the admin view every 2s so scheduler/extension updates show up
 // without a manual reload. This only re-reads the database (no LeetCode calls).

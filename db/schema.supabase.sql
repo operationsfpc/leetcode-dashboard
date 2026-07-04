@@ -110,5 +110,10 @@ create index if not exists idx_problems_college on practice_problems(college_id)
 create index if not exists idx_snapshots_student on stat_snapshots(student_id);
 create index if not exists idx_ma_student on monthly_activity(student_id);
 create index if not exists idx_ma_college_ym on monthly_activity(college_id, ym);
+
+create table if not exists app_settings (
+  key   text primary key,
+  value text
+);
 create index if not exists idx_pc_student on practice_completions(student_id);
 create index if not exists idx_pc_problem on practice_completions(problem_id);
