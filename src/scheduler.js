@@ -3,29 +3,26 @@ import { config } from './config.js';
 import { runSync } from './sync.js';
 import { store } from './store.js';
 
-// Admin-controlled server-sync mode. Persisted in app_settings so it survives
-// restarts. mode: 'on' | 'off' | 'scheduled' (only sync within from–to window).
-let syncCfg = { mode: 'on', from: '', to: '' };
-export function getSyncCfg() { return syncCfg; }
-export async function setSyncCfg(patch) {
-  syncCfg = { mode: 'on', from: '', to: '', ...syncCfg, ...patch };
-  if (!['on', 'off', 'scheduled'].includes(syncCfg.mode)) syncCfg.mode = 'on';
-  try { await store.setSetting('sync_cfg', JSON.stringify(syncCfg)); } catch (e) { console.error('[scheduler] save cfg failed', e.message); }
-  return syncCfg;
+// Is a given time window active right now? Evaluated in the SERVER's local time
+// (UTC on Render). Empty from/to => always active. Supports overnight windows.
+export function windowActiveNow(from, to) {
+  if (!from || !to) return true;
+  const cur = new Date().toTimeString().slice(0, 5); // "HH:MM"
+  return from <= to ? (cur >= from && cur < to) : (cur >= from || cur < to);
 }
-async function loadSyncCfg() {
-  try { const v = await store.getSetting('sync_cfg'); if (v) syncCfg = { mode: 'on', from: '', to: '', ...JSON.parse(v) }; } catch {}
-}
-// Whether the server sync should run right now (server local time for the window).
-function syncAllowed() {
-  if (syncCfg.mode === 'off') return false;
-  if (syncCfg.mode === 'scheduled') {
-    const { from, to } = syncCfg;
-    if (!from || !to) return true;
-    const cur = new Date().toTimeString().slice(0, 5);
-    return from <= to ? (cur >= from && cur < to) : (cur >= from || cur < to);
-  }
+
+// Whether a college's SERVER sync should run right now, per its own setting.
+export function collegeSyncActive(c) {
+  const mode = c.sync_mode || 'on';
+  if (mode === 'off') return false;
+  if (mode === 'scheduled') return windowActiveNow(c.sync_from, c.sync_to);
   return true; // 'on'
+}
+
+// The colleges whose sync is active right now (used to scope each sync tick).
+async function activeSyncCollegeIds() {
+  const colleges = await store.listColleges();
+  return colleges.filter(collegeSyncActive).map((c) => c.id);
 }
 
 export function startScheduler() {
@@ -33,28 +30,27 @@ export function startScheduler() {
     console.error(`[scheduler] invalid POLL_CRON "${config.pollCron}" — auto-poll disabled`);
     return;
   }
-  loadSyncCfg();
   cron.schedule(config.pollCron, async () => {
-    if (!syncAllowed()) return; // admin turned server sync off / outside window
     try {
-      const r = await runSync({ batch: config.syncBatchSize });
-      // Quiet logging (fires often): only log real work or errors.
+      const allowed = await activeSyncCollegeIds();
+      if (!allowed.length) return; // no college wants syncing right now
+      const r = await runSync({ batch: config.syncBatchSize, allowedCollegeIds: allowed });
       if (r && !r.skipped) console.log('[scheduler] auto-poll done:', JSON.stringify(r));
     } catch (e) {
       console.error('[scheduler] auto-poll failed:', e.message);
     }
   });
-  console.log(`[scheduler] auto-poll scheduled: "${config.pollCron}" (batch ${config.syncBatchSize || 'all'})`);
+  console.log(`[scheduler] auto-poll scheduled: "${config.pollCron}" (batch ${config.syncBatchSize || 'all'}, per-college)`);
 
   if (config.pollOnStartup) {
-    // delay a few seconds so the server is fully up first
-    setTimeout(() => {
-      if (!syncAllowed()) return; // respect an admin "off"/off-hours setting
-      console.log('[scheduler] running startup sync...');
-      runSync({ batch: config.syncBatchSize }).then(
-        (r) => console.log('[scheduler] startup sync done:', JSON.stringify(r)),
-        (e) => console.error('[scheduler] startup sync failed:', e.message)
-      );
+    setTimeout(async () => {
+      try {
+        const allowed = await activeSyncCollegeIds();
+        if (!allowed.length) return;
+        console.log('[scheduler] running startup sync...');
+        const r = await runSync({ batch: config.syncBatchSize, allowedCollegeIds: allowed });
+        console.log('[scheduler] startup sync done:', JSON.stringify(r));
+      } catch (e) { console.error('[scheduler] startup sync failed:', e.message); }
     }, 4000);
   }
 }

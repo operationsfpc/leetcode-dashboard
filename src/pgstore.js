@@ -70,11 +70,19 @@ export async function getOrCreateCollege(name) {
 export async function listColleges() {
   const { rows } = await q(
     `SELECT c.id, c.name, ${TS('c.created_at', 'created_at')},
+       c.sync_mode, c.sync_from, c.sync_to, c.refresh_mode, c.refresh_from, c.refresh_to,
        (CASE WHEN c.access_code IS NOT NULL AND c.access_code <> '' THEN 1 ELSE 0 END) AS has_code,
        (SELECT COUNT(*) FROM students s WHERE s.college_id = c.id)::int AS student_count
      FROM colleges c ORDER BY c.name`
   );
   return rows;
+}
+
+export async function setCollegeSettings(id, s) {
+  await q(
+    `UPDATE colleges SET sync_mode=$1, sync_from=$2, sync_to=$3, refresh_mode=$4, refresh_from=$5, refresh_to=$6 WHERE id=$7`,
+    [s.sync_mode, s.sync_from || null, s.sync_to || null, s.refresh_mode, s.refresh_from || null, s.refresh_to || null, id]
+  );
 }
 
 export async function getCollege(id) {
@@ -229,7 +237,15 @@ export async function getAllStudents() {
   return rows;
 }
 // The N students least-recently synced (never-synced first) — for staggered refresh.
-export async function getStaleStudents(limit) {
+// allowedCollegeIds (optional array) restricts to those colleges; [] => none.
+export async function getStaleStudents(limit, allowedCollegeIds) {
+  if (Array.isArray(allowedCollegeIds)) {
+    if (!allowedCollegeIds.length) return [];
+    const { rows } = await q(
+      `SELECT ${STUDENT_COLS} FROM students WHERE college_id = ANY($1) ORDER BY last_synced_at ASC NULLS FIRST LIMIT $2`,
+      [allowedCollegeIds, limit]);
+    return rows;
+  }
   const { rows } = await q(
     `SELECT ${STUDENT_COLS} FROM students ORDER BY last_synced_at ASC NULLS FIRST LIMIT $1`, [limit]);
   return rows;

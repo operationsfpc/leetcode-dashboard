@@ -42,7 +42,7 @@ async function syncStudent(student, problemsByCollege) {
 }
 
 // Refresh every student (optionally just one college). Politely paced.
-export async function runSync({ collegeId = null, batch = null } = {}) {
+export async function runSync({ collegeId = null, batch = null, allowedCollegeIds = null } = {}) {
   if (running) return { skipped: true, reason: 'a sync is already running' };
   running = true;
   const started = Date.now();
@@ -56,7 +56,8 @@ export async function runSync({ collegeId = null, batch = null } = {}) {
     } else if (batch && batch > 0) {
       // Staggered scheduled run: only the N most-stale students this tick, so the
       // load on LeetCode is spread evenly and the host IP doesn't get blocked.
-      students = await store.getStaleStudents(batch);
+      // allowedCollegeIds restricts to colleges whose sync is active right now.
+      students = await store.getStaleStudents(batch, allowedCollegeIds);
     } else {
       students = await store.getAllStudents();
     }

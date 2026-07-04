@@ -99,6 +99,15 @@ if (!collegeCols.some((c) => c.name === 'view_token')) {
 if (!collegeCols.some((c) => c.name === 'show_video')) {
   db.exec('ALTER TABLE colleges ADD COLUMN show_video INTEGER NOT NULL DEFAULT 1');
 }
+// Per-college auto-sync and auto-refresh mode ('on'|'off'|'scheduled') + time windows.
+for (const [col, def] of [
+  ['sync_mode', "'on'"], ['sync_from', 'NULL'], ['sync_to', 'NULL'],
+  ['refresh_mode', "'on'"], ['refresh_from', 'NULL'], ['refresh_to', 'NULL'],
+]) {
+  if (!collegeCols.some((c) => c.name === col)) {
+    db.exec(`ALTER TABLE colleges ADD COLUMN ${col} TEXT DEFAULT ${def}`);
+  }
+}
 const problemCols = db.prepare('PRAGMA table_info(practice_problems)').all();
 if (!problemCols.some((c) => c.name === 'topic')) {
   db.exec('ALTER TABLE practice_problems ADD COLUMN topic TEXT');
@@ -155,10 +164,18 @@ export async function getOrCreateCollege(name) {
 export const listColleges = async () =>
   db.prepare(
     `SELECT c.id, c.name, c.created_at,
+       c.sync_mode, c.sync_from, c.sync_to, c.refresh_mode, c.refresh_from, c.refresh_to,
        CASE WHEN c.access_code IS NOT NULL AND c.access_code != '' THEN 1 ELSE 0 END AS has_code,
        (SELECT COUNT(*) FROM students s WHERE s.college_id = c.id) AS student_count
      FROM colleges c ORDER BY c.name`
   ).all();
+
+// Save a college's auto-sync / auto-refresh settings.
+export async function setCollegeSettings(id, s) {
+  db.prepare(
+    `UPDATE colleges SET sync_mode=?, sync_from=?, sync_to=?, refresh_mode=?, refresh_from=?, refresh_to=? WHERE id=?`
+  ).run(s.sync_mode, s.sync_from || null, s.sync_to || null, s.refresh_mode, s.refresh_from || null, s.refresh_to || null, id);
+}
 
 // Global settings key/value.
 export const getSetting = async (key) => {
@@ -309,8 +326,16 @@ export async function getFilterOptions(collegeId) {
 
 export const getAllStudents = async () => db.prepare('SELECT * FROM students').all();
 // The N students least-recently synced (never-synced first) — for staggered refresh.
-export const getStaleStudents = async (limit) =>
-  db.prepare('SELECT * FROM students ORDER BY last_synced_at ASC LIMIT ?').all(limit);
+// allowedCollegeIds (optional array) restricts to those colleges; [] => none.
+export async function getStaleStudents(limit, allowedCollegeIds) {
+  if (Array.isArray(allowedCollegeIds)) {
+    if (!allowedCollegeIds.length) return [];
+    const ph = allowedCollegeIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM students WHERE college_id IN (${ph}) ORDER BY last_synced_at ASC LIMIT ?`)
+      .all(...allowedCollegeIds, limit);
+  }
+  return db.prepare('SELECT * FROM students ORDER BY last_synced_at ASC LIMIT ?').all(limit);
+}
 // A student's rank within their college by total solved (ties share a rank).
 export const getRankInCollege = async (collegeId, solvedTotal) =>
   db.prepare('SELECT COUNT(*) AS c FROM students WHERE college_id=? AND solved_total > ?')

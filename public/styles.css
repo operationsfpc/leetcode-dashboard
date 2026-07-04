@@ -319,3 +319,9 @@ textarea, .search, .field input {
 /* Auto-refresh schedule inputs */
 .ar-sched { display:inline-flex; align-items:center; gap:5px; }
 .ar-time { background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:4px 6px; font-size:12px; }
+
+/* Per-college auto-sync / auto-refresh settings row */
+.cset-row td { background: var(--panel-2); border-bottom: 2px solid var(--border); }
+.cset { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; padding: 4px 2px; }
+.cset-grp { display: inline-flex; align-items: center; gap: 6px; }
+.cset-grp select { padding: 5px 8px; font-size: 12px; }

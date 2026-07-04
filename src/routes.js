@@ -7,7 +7,6 @@ import { config } from './config.js';
 import { store } from './store.js';
 import { parseUsername, parseProblemSlug, fetchProfileStats } from './leetcode.js';
 import { runSync, runSyncStudent, getSyncState } from './sync.js';
-import { getSyncCfg, setSyncCfg } from './scheduler.js';
 import { ingestResults } from './ingest.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -753,15 +752,20 @@ router.post('/sync', (req, res) => {
 
 router.get('/sync/state', (req, res) => res.json(getSyncState()));
 
-// Server-sync mode (admin controls whether/when the LeetCode scraper runs).
-router.get('/sync-settings', (req, res) => res.json(getSyncCfg()));
-router.post('/sync-settings', h(async (req, res) => {
-  const mode = req.body?.mode;
-  if (!['on', 'off', 'scheduled'].includes(mode)) return res.status(400).json({ error: 'mode must be on|off|scheduled' });
-  const from = (req.body?.from || '').trim();
-  const to = (req.body?.to || '').trim();
-  const cfg = await setSyncCfg({ mode, from, to });
-  res.json(cfg);
+// Per-college auto-sync + auto-refresh settings.
+router.post('/colleges/:id/settings', h(async (req, res) => {
+  const clean = (m) => (['on', 'off', 'scheduled'].includes(m) ? m : 'on');
+  const t = (v) => { const s = (v || '').trim(); return /^\d{2}:\d{2}$/.test(s) ? s : null; };
+  const s = {
+    sync_mode: clean(req.body?.sync_mode),
+    sync_from: t(req.body?.sync_from),
+    sync_to: t(req.body?.sync_to),
+    refresh_mode: clean(req.body?.refresh_mode),
+    refresh_from: t(req.body?.refresh_from),
+    refresh_to: t(req.body?.refresh_to),
+  };
+  await store.setCollegeSettings(Number(req.params.id), s);
+  res.json({ ok: true, settings: s });
 }));
 
 // ---- Chrome-extension integration ------------------------------------------

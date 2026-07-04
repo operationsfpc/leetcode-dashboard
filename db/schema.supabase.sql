@@ -84,6 +84,12 @@ alter table practice_problems add column if not exists domain text;
 alter table practice_problems add column if not exists video_url text;
 alter table practice_problems add column if not exists due_date text;
 alter table colleges add column if not exists show_video boolean not null default true;
+alter table colleges add column if not exists sync_mode text default 'on';
+alter table colleges add column if not exists sync_from text;
+alter table colleges add column if not exists sync_to text;
+alter table colleges add column if not exists refresh_mode text default 'on';
+alter table colleges add column if not exists refresh_from text;
+alter table colleges add column if not exists refresh_to text;
 -- Denormalized college on monthly_activity for fast whole-college chart aggregates.
 alter table monthly_activity add column if not exists college_id bigint;
 update monthly_activity m set college_id = s.college_id

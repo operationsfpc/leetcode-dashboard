@@ -59,13 +59,34 @@ document.querySelectorAll('.tab').forEach((t) => {
 });
 
 // ---- Colleges tab -----------------------------------------------------------
+function modeSelect(cls, val) {
+  const v = val || 'on';
+  return `<select class="filter-sel ${cls}">
+    <option value="on"${v === 'on' ? ' selected' : ''}>On</option>
+    <option value="off"${v === 'off' ? ' selected' : ''}>Off</option>
+    <option value="scheduled"${v === 'scheduled' ? ' selected' : ''}>Scheduled</option>
+  </select>`;
+}
+// Per-college auto-sync + auto-refresh controls (rendered as a row beneath each college).
+function csetRow(c) {
+  const sMode = c.sync_mode || 'on', rMode = c.refresh_mode || 'on';
+  const win = (cls, from, to, show) => `<span class="${cls} ar-sched" style="display:${show ? 'inline-flex' : 'none'}">
+      <input type="time" class="${cls}-from ar-time" value="${from || ''}" /> <span class="hint">–</span>
+      <input type="time" class="${cls}-to ar-time" value="${to || ''}" /></span>`;
+  return `<tr class="cset-row" data-id="${c.id}"><td colspan="6">
+    <div class="cset">
+      <span class="cset-grp"><span class="hint">🛰 Auto-sync</span> ${modeSelect('cset-sync-mode', sMode)} ${win('cset-sync', c.sync_from, c.sync_to, sMode === 'scheduled')}</span>
+      <span class="cset-grp"><span class="hint">🔄 Auto-refresh</span> ${modeSelect('cset-ref-mode', rMode)} ${win('cset-ref', c.refresh_from, c.refresh_to, rMode === 'scheduled')}</span>
+      <span class="cset-saved hint" style="color:var(--green);opacity:0">saved ✓</span>
+    </div></td></tr>`;
+}
 async function loadCollegesTab() {
   $('#studentLink').textContent = location.origin + '/student';
   $('#studentLink').href = '/student';
   const colleges = await api('/colleges');
   const tbody = $('#collegeTable').querySelector('tbody');
   if (!colleges.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No colleges yet. Add one above.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No colleges yet. Add one above.</td></tr>';
     return;
   }
   tbody.innerHTML = colleges.map((c) => `
@@ -82,7 +103,32 @@ async function loadCollegesTab() {
         <span class="link-out" data-id="${c.id}"></span>
       </td>
       <td><button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">Delete</button></td>
-    </tr>`).join('');
+    </tr>${csetRow(c)}`).join('');
+
+  // Per-college auto-sync / auto-refresh settings — save on any change.
+  tbody.querySelectorAll('.cset-row').forEach((row) => {
+    const id = row.dataset.id;
+    const save = async () => {
+      const syncMode = row.querySelector('.cset-sync-mode').value;
+      const refMode = row.querySelector('.cset-ref-mode').value;
+      row.querySelector('.cset-sync').style.display = syncMode === 'scheduled' ? 'inline-flex' : 'none';
+      row.querySelector('.cset-ref').style.display = refMode === 'scheduled' ? 'inline-flex' : 'none';
+      const body = {
+        sync_mode: syncMode,
+        sync_from: row.querySelector('.cset-sync-from').value,
+        sync_to: row.querySelector('.cset-sync-to').value,
+        refresh_mode: refMode,
+        refresh_from: row.querySelector('.cset-ref-from').value,
+        refresh_to: row.querySelector('.cset-ref-to').value,
+      };
+      try {
+        await api(`/colleges/${id}/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (state.collegesById && state.collegesById[id]) Object.assign(state.collegesById[id], body); // live-update the refresh gate
+        const s = row.querySelector('.cset-saved'); if (s) { s.style.opacity = '1'; setTimeout(() => { s.style.opacity = '0'; }, 1500); }
+      } catch (e) { alert('Could not save settings: ' + e.message); }
+    };
+    row.querySelectorAll('select, input[type=time]').forEach((el) => el.addEventListener('change', save));
+  });
 
   tbody.querySelectorAll('.del-college').forEach((b) => b.addEventListener('click', async () => {
     const name = b.dataset.name, n = b.dataset.count;
@@ -151,6 +197,8 @@ $('#addCollegeBtn').addEventListener('click', async () => {
 // ---- College picker ---------------------------------------------------------
 async function loadColleges() {
   const colleges = await api('/colleges');
+  // Cache per-college settings so the browser auto-refresh can follow them.
+  state.collegesById = Object.fromEntries(colleges.map((c) => [c.id, c]));
 
   // Keep the Upload tab's college dropdown in sync with existing colleges.
   const up = $('#uploadCollege');
@@ -1245,7 +1293,6 @@ async function adminLogin() {
     $('#adminUser').value = '';
     $('#adminLogout').style.display = 'inline-block';
     loadColleges();
-    loadSyncSettings();
   } catch (e) { setMsg('#adminLoginMsg', e.message, 'err'); }
 }
 $('#adminLoginBtn').addEventListener('click', adminLogin);
@@ -1268,93 +1315,42 @@ $('#adminLogout').addEventListener('click', async () => {
   if (authRequired && !adminToken()) { showAdminLogin(); return; }
   if (authRequired) $('#adminLogout').style.display = 'inline-block';
   loadColleges();
-  loadSyncSettings();
 })();
 
-// ---- Auto-refresh mode: on | off | scheduled (off/off-hours saves egress) ----
-let arMode = 'on', arFrom = '', arTo = '';
-try {
-  arMode = localStorage.getItem('lc_ar_mode') || 'on';
-  arFrom = localStorage.getItem('lc_ar_from') || '';
-  arTo = localStorage.getItem('lc_ar_to') || '';
-} catch {}
-
-// True when the current time is inside the configured window (or no window set).
-function inRefreshWindow() {
-  if (!arFrom || !arTo) return true;          // no window -> treat as always
-  const cur = new Date().toTimeString().slice(0, 5); // "HH:MM"
-  return arFrom <= arTo ? (cur >= arFrom && cur < arTo) // same-day window
-    : (cur >= arFrom || cur < arTo);           // overnight window (e.g. 22:00–06:00)
+// ---- Per-college auto-refresh gating ---------------------------------------
+// The browser auto-refresh follows the *selected college's* refresh setting
+// (configured in the Colleges tab, evaluated against the browser's local time).
+function windowActiveNow(from, to) {
+  if (!from || !to) return true;
+  const cur = new Date().toTimeString().slice(0, 5);
+  return from <= to ? (cur >= from && cur < to) : (cur >= from || cur < to);
 }
-// The master gate used by every auto-refresh timer.
-function autoRefreshActive() {
-  if (arMode === 'off') return false;
-  if (arMode === 'scheduled') return inRefreshWindow();
-  return true; // 'on'
+function refreshActiveFor(collegeId) {
+  const c = state.collegesById && state.collegesById[collegeId];
+  if (!c) return true; // unknown -> default to refreshing
+  const mode = c.refresh_mode || 'on';
+  if (mode === 'off') return false;
+  if (mode === 'scheduled') return windowActiveNow(c.refresh_from, c.refresh_to);
+  return true;
 }
-function updateAutoRefreshUI() {
-  const sel = $('#autoRefreshMode'); if (sel) sel.value = arMode;
-  const sched = $('#arSchedule'); if (sched) sched.style.display = arMode === 'scheduled' ? 'inline-flex' : 'none';
-  const f = $('#arFrom'), t = $('#arTo'); if (f) f.value = arFrom; if (t) t.value = arTo;
-}
-$('#autoRefreshMode').addEventListener('change', (e) => {
-  arMode = e.target.value;
-  try { localStorage.setItem('lc_ar_mode', arMode); } catch {}
-  updateAutoRefreshUI();
-  if (autoRefreshActive()) { // refresh once immediately when it becomes active
-    const active = document.querySelector('.tab.active')?.dataset.tab;
-    if (active === 'dashboard') loadDashboard();
-    else if (active === 'practice') loadPractice();
-  }
-});
-function wireArTime(id, key, set) {
-  const el = $(id); if (!el) return;
-  el.addEventListener('change', () => {
-    set(el.value);
-    try { localStorage.setItem(key, el.value); } catch {}
-  });
-}
-wireArTime('#arFrom', 'lc_ar_from', (v) => { arFrom = v; });
-wireArTime('#arTo', 'lc_ar_to', (v) => { arTo = v; });
-updateAutoRefreshUI();
-
-// ---- Server-sync control (on / off / scheduled) — persisted server-side -----
-async function loadSyncSettings() {
-  let cfg;
-  try { cfg = await api('/sync-settings'); } catch { return; }
-  const sel = $('#syncMode'); if (sel) sel.value = cfg.mode || 'on';
-  const f = $('#syncFrom'), t = $('#syncTo'); if (f) f.value = cfg.from || ''; if (t) t.value = cfg.to || '';
-  const sched = $('#syncSchedule'); if (sched) sched.style.display = (cfg.mode === 'scheduled') ? 'inline-flex' : 'none';
-}
-async function saveSyncSettings() {
-  const mode = $('#syncMode').value;
-  const from = $('#syncFrom').value, to = $('#syncTo').value;
-  $('#syncSchedule').style.display = (mode === 'scheduled') ? 'inline-flex' : 'none';
-  try { await api('/sync-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, from, to }) }); }
-  catch (e) { alert('Could not save sync setting: ' + e.message); }
-}
-$('#syncMode')?.addEventListener('change', saveSyncSettings);
-$('#syncFrom')?.addEventListener('change', saveSyncSettings);
-$('#syncTo')?.addEventListener('change', saveSyncSettings);
 
 // Auto-refresh the admin view every 2s so scheduler/extension updates show up
 // without a manual reload. This only re-reads the database (no LeetCode calls).
 setInterval(() => {
-  if (!autoRefreshActive()) return;                         // toggled off or outside the time window
   if (document.hidden) return;                              // tab not visible
   if ($('#adminLogin').classList.contains('show')) return;  // not logged in
   if ($('#drawer').classList.contains('open')) return;      // don't disrupt an open student drawer
   const active = document.querySelector('.tab.active')?.dataset.tab;
-  if (active === 'dashboard') loadDashboard({ chart: false });
-  else if (active === 'practice') loadPractice();
+  if (active === 'dashboard') { if (refreshActiveFor(state.collegeId)) loadDashboard({ chart: false }); }
+  else if (active === 'practice') { if (refreshActiveFor(practiceCid())) loadPractice(); }
 }, 2000);
 
 // Refresh the monthly chart on a slower cadence (it's cached server-side, and
 // the data only changes on sync). Keeps it accurate without blocking anything.
 setInterval(() => {
-  if (!autoRefreshActive()) return;
   if (document.hidden) return;
   if ($('#adminLogin').classList.contains('show')) return;
   if (document.querySelector('.tab.active')?.dataset.tab !== 'dashboard') return;
+  if (!refreshActiveFor(state.collegeId)) return;
   loadMonthly();
 }, 20000);
