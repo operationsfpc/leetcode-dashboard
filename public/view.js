@@ -261,8 +261,8 @@ function renderPractice(d) {
     return `<tr>
       <td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>${p.video_url ? ` <button class="vid-link" data-video="${esc(p.video_url)}" title="YouTube video">▶ video</button>` : ''}${p.due_date ? ` <span class="due-pill${p.due_date < new Date().toISOString().slice(0,10) ? ' overdue' : ''}">⏰ ${esc(p.due_date)}</span>` : ''}</td>
       <td>${p.difficulty ? `<span class="pill ${(p.difficulty || '').toLowerCase()}">${esc(p.difficulty)}</span>` : '—'}</td>
-      <td>${p.completedCount}/${d.studentCount}</td>
-      <td><span class="progress"><span style="width:${pct}%"></span></span> ${pct}%</td></tr>`;
+      <td class="prog-cell" data-pid="${p.id}" data-title="${esc(p.title)}" style="cursor:pointer" title="Click to see who completed / didn't">${p.completedCount}/${d.studentCount}</td>
+      <td class="prog-cell" data-pid="${p.id}" data-title="${esc(p.title)}" style="cursor:pointer" title="Click to see who completed / didn't"><span class="progress"><span style="width:${pct}%"></span></span> ${pct}%</td></tr>`;
   };
   const topicRows = (probs) => {
     const groups = {};
@@ -280,6 +280,8 @@ function renderPractice(d) {
     collapsedTopics.has(k) ? collapsedTopics.delete(k) : collapsedTopics.add(k);
     if (lastData) renderPractice(lastData);
   }));
+  const wireProgCells = () => tbody.querySelectorAll('.prog-cell').forEach((c) => c.addEventListener('click', () =>
+    showProblemCompletion(Number(c.dataset.pid), c.dataset.title)));
   const domGroups = {};
   for (const p of d.practice) (domGroups[dom(p)] ||= []).push(p);
   const domNames = Object.keys(domGroups).sort(domCmp);
@@ -289,6 +291,7 @@ function renderPractice(d) {
     tabsEl.innerHTML = '';
     tbody.innerHTML = topicRows(d.practice);
     wireTopicFold();
+    wireProgCells();
     return;
   }
 
@@ -317,6 +320,29 @@ function renderPractice(d) {
     if (lastData) renderPractice(lastData);
   }));
   wireTopicFold();
+  wireProgCells();
+}
+
+// Who completed / didn't complete one problem (read-only drawer).
+async function showProblemCompletion(problemId, title) {
+  $('#drawerContent').innerHTML = '<p class="hint">Loading…</p>';
+  $('#drawer').classList.add('open');
+  $('#drawerBackdrop').classList.add('show');
+  let d;
+  try { d = await api(`/view/${encodeURIComponent(token)}/practice/${problemId}/completion`); }
+  catch { $('#drawerContent').innerHTML = '<p class="empty">Could not load.</p>'; return; }
+  const table = (arr) => arr.length
+    ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th></tr></thead><tbody>${
+        arr.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
+          <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
+          <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td></tr>`).join('')
+      }</tbody></table>`
+    : '<p class="empty">None.</p>';
+  $('#drawerContent').innerHTML = `<h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
+    <h2 style="color:var(--green);margin-top:14px">✓ Completed (${d.completed.length})</h2>${table(d.completed)}
+    <h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${d.notCompleted.length})</h2>${table(d.notCompleted)}`;
+  $('#drawerContent').querySelectorAll('tr[data-id]').forEach((tr) =>
+    tr.addEventListener('click', () => openStudent(tr.dataset.id)));
 }
 
 // ---- read-only student drawer ----------------------------------------------

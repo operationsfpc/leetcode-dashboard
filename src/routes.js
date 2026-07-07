@@ -46,7 +46,7 @@ function isPublicReq(req) {
   if (m === 'GET' && /^\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
   if (m === 'POST' && (p === '/student/login' || p === '/student/register')) return true;
   if (m === 'GET' && /^\/student\/\d+\/dashboard$/.test(p)) return true;
-  if (m === 'GET' && /^\/view\/[^/]+(\/student\/\d+|\/practice-completers)?$/.test(p)) return true; // shared read-only link
+  if (m === 'GET' && /^\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion)?$/.test(p)) return true; // shared read-only link
   return false;
 }
 
@@ -224,6 +224,7 @@ router.get('/view/:token', h(async (req, res) => {
     completionDist,
     showVideo: videoShown(c),
     practice: problems.map((p) => ({
+      id: p.id,
       title: p.title,
       url: p.url,
       difficulty: p.difficulty,
@@ -243,6 +244,14 @@ router.get('/view/:token/practice-completers', h(async (req, res) => {
   const count = Math.max(0, Number(req.query.count) || 0);
   const students = await store.getStudentsByCompletedCount(c.id, count);
   res.json({ count, students: students.map((s) => omitEmail(s)) });
+}));
+
+// Read-only drill-down: who completed / didn't complete ONE problem (token-scoped).
+router.get('/view/:token/practice/:problemId/completion', h(async (req, res) => {
+  const c = await store.getCollegeByToken(req.params.token);
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+  const r = await store.getProblemCompletion(c.id, Number(req.params.problemId));
+  res.json(r);
 }));
 
 // Read-only individual student detail, scoped to the share token's college.
