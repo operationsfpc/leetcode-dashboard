@@ -601,6 +601,20 @@ export async function getPracticeDistribution(collegeId) {
   return rows.map((r) => ({ completed: r.cnt, students: r.students }));
 }
 
+// For one problem: which students in the college completed it, and which didn't.
+export async function getProblemCompletion(collegeId, problemId) {
+  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department';
+  const completed = db.prepare(
+    `SELECT ${cols} FROM students s
+     JOIN practice_completions pc ON pc.student_id = s.id AND pc.problem_id = ?
+     WHERE s.college_id = ? ORDER BY s.name`).all(problemId, collegeId);
+  const notCompleted = db.prepare(
+    `SELECT ${cols} FROM students s
+     WHERE s.college_id = ? AND s.id NOT IN (SELECT student_id FROM practice_completions WHERE problem_id = ?)
+     ORDER BY s.name`).all(collegeId, problemId);
+  return { completed, notCompleted };
+}
+
 // The students who completed exactly `count` assigned problems (on-demand drill-down).
 export async function getStudentsByCompletedCount(collegeId, count) {
   return db.prepare(

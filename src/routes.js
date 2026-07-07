@@ -640,6 +640,12 @@ router.post('/colleges/:id/video-visibility', h(async (req, res) => {
   res.json({ ok: true, showVideo: show });
 }));
 
+// Drill-down: who completed / didn't complete ONE specific problem.
+router.get('/colleges/:id/practice/:problemId/completion', h(async (req, res) => {
+  const r = await store.getProblemCompletion(Number(req.params.id), Number(req.params.problemId));
+  res.json(r);
+}));
+
 // Drill-down: students who completed exactly N assigned problems.
 router.get('/colleges/:id/practice-completers', h(async (req, res) => {
   const collegeId = Number(req.params.id);

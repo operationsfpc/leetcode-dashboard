@@ -584,6 +584,19 @@ export async function getPracticeDistribution(collegeId) {
 }
 
 // The students who completed exactly `count` assigned problems (on-demand drill-down).
+export async function getProblemCompletion(collegeId, problemId) {
+  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department';
+  const completed = (await q(
+    `SELECT ${cols} FROM students s
+     JOIN practice_completions pc ON pc.student_id = s.id AND pc.problem_id = $1
+     WHERE s.college_id = $2 ORDER BY s.name`, [problemId, collegeId])).rows;
+  const notCompleted = (await q(
+    `SELECT ${cols} FROM students s
+     WHERE s.college_id = $1 AND s.id NOT IN (SELECT student_id FROM practice_completions WHERE problem_id = $2)
+     ORDER BY s.name`, [collegeId, problemId])).rows;
+  return { completed, notCompleted };
+}
+
 export async function getStudentsByCompletedCount(collegeId, count) {
   const { rows } = await q(
     `SELECT s.id, s.name, s.username, s.register_number, s.section, s.department, COUNT(pp.id)::int AS cnt

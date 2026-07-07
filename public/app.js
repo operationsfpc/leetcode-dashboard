@@ -785,8 +785,8 @@ function renderPracticeData(d) {
     return `<tr>
       <td><a href="${esc(p.url)}" target="_blank">${esc(p.title)}</a>${p.video_url ? ` <button class="vid-link" data-video="${esc(p.video_url)}" title="YouTube video">▶ video</button>` : ''}${dueLabel(p.due_date)}</td>
       <td>${p.difficulty ? `<span class="pill ${(p.difficulty || '').toLowerCase()}">${esc(p.difficulty)}</span>` : '—'}</td>
-      <td>${p.completedCount}/${d.studentCount}</td>
-      <td><span class="progress"><span style="width:${pct}%"></span></span> ${pct}%</td>
+      <td class="prog-cell" data-pid="${p.id}" data-title="${esc(p.title)}" style="cursor:pointer" title="Click to see who completed / didn't">${p.completedCount}/${d.studentCount}</td>
+      <td class="prog-cell" data-pid="${p.id}" data-title="${esc(p.title)}" style="cursor:pointer" title="Click to see who completed / didn't"><span class="progress"><span style="width:${pct}%"></span></span> ${pct}%</td>
       <td><button class="btn btn-sm btn-danger del-prob" data-id="${p.id}">Delete</button></td>
     </tr>`;
   };
@@ -845,6 +845,30 @@ function renderPracticeData(d) {
     await api(`/practice/${b.dataset.id}`, { method: 'DELETE' });
     loadPractice();
   }));
+  tbody.querySelectorAll('.prog-cell').forEach((c) => c.addEventListener('click', () =>
+    showProblemCompletion(Number(c.dataset.pid), c.dataset.title)));
+}
+
+// Who completed / didn't complete one specific problem (drawer).
+async function showProblemCompletion(problemId, title) {
+  const cid = practiceCid(); if (!cid) return;
+  $('#drawerContent').innerHTML = '<p class="hint">Loading…</p>';
+  openDrawer();
+  let d;
+  try { d = await api(`/colleges/${cid}/practice/${problemId}/completion`); }
+  catch { $('#drawerContent').innerHTML = '<p class="empty">Could not load.</p>'; return; }
+  const table = (arr) => arr.length
+    ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th></tr></thead><tbody>${
+        arr.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
+          <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
+          <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td></tr>`).join('')
+      }</tbody></table>`
+    : '<p class="empty">None.</p>';
+  $('#drawerContent').innerHTML = `<h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
+    <h2 style="color:var(--green);margin-top:14px">✓ Completed (${d.completed.length})</h2>${table(d.completed)}
+    <h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${d.notCompleted.length})</h2>${table(d.notCompleted)}`;
+  $('#drawerContent').querySelectorAll('tr[data-id]').forEach((tr) =>
+    tr.addEventListener('click', () => openStudent(tr.dataset.id)));
 }
 
 // ---- Hardest questions (lowest completion %) --------------------------------
