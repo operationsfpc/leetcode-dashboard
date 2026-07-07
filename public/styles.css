@@ -325,3 +325,24 @@ textarea, .search, .field input {
 .cset { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; padding: 4px 2px; }
 .cset-grp { display: inline-flex; align-items: center; gap: 6px; }
 .cset-grp select { padding: 5px 8px; font-size: 12px; }
+
+/* Student table: fit the full width with no left-right scrolling. Cells wrap
+   instead of forcing the table wider than the screen. */
+#studentTable { width: 100%; }
+#studentTable th, #studentTable td { white-space: normal; word-break: break-word; padding: 9px 8px; vertical-align: middle; font-size: 13px; }
+#studentTable .s-name, #studentTable .s-user { word-break: break-word; }
+#studentTable .progress { width: 100%; max-width: 90px; }
+#studentTable .dbar { width: 100%; max-width: 100px; }
+#studentTable .pp { flex-wrap: wrap; }
+/* let the checkbox and # columns stay narrow so the data columns get the room */
+#studentTable th:first-child, #studentTable td:first-child { width: 30px; }
+
+/* Drill-down drawer table: fit the drawer width, wrap instead of scrolling. */
+#drawerContent { overflow-x: hidden; }
+.mini-table { width: 100%; table-layout: fixed; }
+.mini-table th, .mini-table td { white-space: normal; overflow-wrap: anywhere; word-break: break-word; padding: 6px 6px; font-size: 12px; }
+
+/* All tables inside the student drawer: fit the drawer width, wrap, never clip. */
+#drawerContent table { width: 100%; table-layout: fixed; }
+#drawerContent th, #drawerContent td { white-space: normal; overflow-wrap: anywhere; word-break: break-word; padding: 6px 6px; font-size: 12px; }
+#drawerContent .toggle-comp { white-space: nowrap; }

@@ -743,7 +743,6 @@ function renderPracticeData(d) {
   state.practiceSig = sig;
 
   renderCompletionDist(d);
-  renderHardest(d);
   state.showVideo = !!d.showVideo;
   setVideoToggleLabel();
   const tbody = $('#practiceTable').querySelector('tbody');
@@ -869,23 +868,6 @@ async function showProblemCompletion(problemId, title) {
     <h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${d.notCompleted.length})</h2>${table(d.notCompleted)}`;
   $('#drawerContent').querySelectorAll('tr[data-id]').forEach((tr) =>
     tr.addEventListener('click', () => openStudent(tr.dataset.id)));
-}
-
-// ---- Hardest questions (lowest completion %) --------------------------------
-function renderHardest(d) {
-  const el = $('#hardestList');
-  if (!el) return;
-  const n = d.studentCount || 0;
-  if (!n || !d.problems.length) { el.innerHTML = '<p class="hint" style="margin:0">No data yet.</p>'; return; }
-  const ranked = d.problems
-    .map((p) => ({ ...p, pct: Math.round(((p.completedCount || 0) / n) * 100) }))
-    .sort((a, b) => a.pct - b.pct || (a.completedCount || 0) - (b.completedCount || 0))
-    .slice(0, 8);
-  el.innerHTML = ranked.map((p) => `<div class="dist-row" style="cursor:default">
-      <span class="dist-label"><a href="${esc(p.url)}" target="_blank">${esc(p.title)}</a>${p.topic ? ` <span class="hint">· ${esc(p.topic)}</span>` : ''}</span>
-      <span class="dist-bar"><span style="width:${p.pct}%"></span></span>
-      <span class="dist-num">${p.completedCount || 0}/${n} <span class="hint">(${p.pct}%)</span></span>
-    </div>`).join('');
 }
 
 // ---- Completion breakdown (how many students solved how many questions) -----
