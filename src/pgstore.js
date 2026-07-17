@@ -27,7 +27,9 @@ const STUDENT_COLS = `id, college_id, name, username, profile_url, ranking, cont
 // WHERE clause + params ($n) for student filters.
 function studentWhere(collegeId, f = {}) {
   const params = [collegeId];
-  const cond = ['college_id = $1'];
+  // Qualify college_id — monthly_activity also has it, so the filtered monthly
+  // JOIN would otherwise be an ambiguous-column error.
+  const cond = ['students.college_id = $1'];
   const p = (v) => { params.push(v); return '$' + params.length; };
   if (f.batch) cond.push(`section = ${p(f.batch)}`);
   if (f.department) cond.push(`department = ${p(f.department)}`);

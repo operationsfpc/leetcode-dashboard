@@ -247,7 +247,9 @@ export const listStudents = async (collegeId) =>
 
 // Build a WHERE clause + params for the student filters (batch/dept/campus/search).
 function studentWhere(collegeId, f = {}) {
-  const cond = ['college_id = ?'];
+  // Qualify college_id — monthly_activity also has it now, so the filtered
+  // monthly JOIN would otherwise be "ambiguous column name: college_id".
+  const cond = ['students.college_id = ?'];
   const params = [collegeId];
   if (f.batch) { cond.push('section = ?'); params.push(f.batch); }
   if (f.department) { cond.push('department = ?'); params.push(f.department); }
