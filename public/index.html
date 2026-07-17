@@ -116,8 +116,12 @@
       <div class="panel">
         <div class="panel-head" style="flex-wrap:wrap;gap:8px">
           <h2>Assign practice problems</h2>
-          <button id="videoToggle" class="btn btn-sm btn-ghost" title="Show or hide all video links in the student view for this college">🎬 Videos: …</button>
+          <div class="row" style="margin:0;gap:8px">
+            <button id="videoToggle" class="btn btn-sm btn-ghost" title="Show or hide all video links in the student view for this college">🎬 Videos: …</button>
+            <button id="questionsLinkBtn" class="btn btn-sm btn-ghost" title="Public link that shows only the question list — no login">🔗 Questions-only link</button>
+          </div>
         </div>
+        <div id="questionsLinkOut" class="row" style="margin-top:0"></div>
         <datalist id="topicList"></datalist>
         <datalist id="domainList"></datalist>
 
@@ -226,7 +230,7 @@
 
     <!-- UPLOAD -->
     <section id="tab-upload" class="tab-panel">
-      <div class="panel narrow">
+      <div class="panel">
         <h2>Upload student roster</h2>
         <p class="hint">Excel needs <code>Student Name</code> and <code>LeetCode URL</code>. Optional columns are used for filtering: <code>Register Number</code>, <code>Email ID</code>, <code>Department</code>, <code>Section</code> (batch), <code>Year</code>, <code>Campus name</code>. <a href="/api/template" download>Download template</a>. Don't see your college? Add it in the <b>Colleges</b> tab first.</p>
         <label class="field">
@@ -239,6 +243,28 @@
         </label>
         <button id="uploadBtn" class="btn btn-primary">Upload &amp; sync</button>
         <div id="uploadResult" class="msg"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Add a single student</h2>
+        <p class="hint">Add one student without a spreadsheet. Only <b>name</b> and <b>LeetCode profile</b> are required; the rest are optional (used for filtering).</p>
+        <label class="field"><span>College</span><select id="singleStudentCollege"></select></label>
+        <label class="field"><span>Student name *</span><input id="ssName" placeholder="e.g. Asha Rao" /></label>
+        <label class="field"><span>LeetCode profile URL or username *</span><input id="ssUrl" placeholder="https://leetcode.com/u/asharao/  or  asharao" /></label>
+        <div class="row" style="margin-top:0">
+          <input id="ssReg" class="search" placeholder="Register number" style="flex:1;min-width:150px" />
+          <input id="ssEmail" class="search" placeholder="Email ID" style="flex:1;min-width:150px" />
+        </div>
+        <div class="row">
+          <input id="ssDept" class="search" placeholder="Department" style="flex:1;min-width:130px" />
+          <input id="ssSection" class="search" placeholder="Section / batch" style="flex:1;min-width:130px" />
+          <input id="ssYear" class="search" placeholder="Year" style="flex:1;min-width:90px" />
+          <input id="ssCampus" class="search" placeholder="Campus" style="flex:1;min-width:120px" />
+        </div>
+        <div class="row">
+          <button id="addStudentBtn" class="btn btn-primary">Add student &amp; sync</button>
+          <span id="addStudentMsg" class="msg" style="margin:0"></span>
+        </div>
       </div>
     </section>
   </main>

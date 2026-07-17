@@ -231,7 +231,7 @@ export async function getCollegeMonthly(collegeId, f = {}) {
 export async function getFilterOptions(collegeId) {
   const distinct = async (col) =>
     (await q(`SELECT DISTINCT ${col} AS v FROM students WHERE college_id=$1 AND ${col} IS NOT NULL AND ${col}<>'' ORDER BY ${col}`, [collegeId])).rows.map((r) => r.v);
-  return { batches: await distinct('section'), departments: await distinct('department'), campuses: await distinct('campus') };
+  return { batches: await distinct('section'), departments: await distinct('department'), campuses: await distinct('campus'), years: await distinct('year') };
 }
 
 export async function getAllStudents() {

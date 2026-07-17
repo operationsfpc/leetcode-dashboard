@@ -47,6 +47,7 @@ function isPublicReq(req) {
   if (m === 'POST' && (p === '/student/login' || p === '/student/register')) return true;
   if (m === 'GET' && /^\/student\/\d+\/dashboard$/.test(p)) return true;
   if (m === 'GET' && /^\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion)?$/.test(p)) return true; // shared read-only link
+  if (m === 'GET' && /^\/public\/practice\/[^/]+$/.test(p)) return true; // public questions-only list
   return false;
 }
 
@@ -244,6 +245,32 @@ router.get('/view/:token/practice-completers', h(async (req, res) => {
   const count = Math.max(0, Number(req.query.count) || 0);
   const students = await store.getStudentsByCompletedCount(c.id, count);
   res.json({ count, students: students.map((s) => omitEmail(s)) });
+}));
+
+// Public questions-only list (no login, no student data) — just the assigned
+// questions with difficulty and (if enabled) video links.
+router.get('/public/practice/:token', h(async (req, res) => {
+  const c = await store.getCollegeByToken(req.params.token);
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+  const [problems, domainOrder, topicOrder] = await Promise.all([
+    store.listPracticeProblems(c.id), store.listDomains(c.id), store.listTopics(c.id),
+  ]);
+  const show = videoShown(c);
+  res.json({
+    college: { name: c.name },
+    showVideo: show,
+    domainOrder,
+    topicOrder,
+    problems: problems.map((p) => ({
+      title: p.title,
+      url: p.url,
+      difficulty: p.difficulty,
+      topic: p.topic || null,
+      domain: p.domain || null,
+      video_url: show ? (p.video_url || null) : null,
+      due_date: p.due_date || null,
+    })),
+  });
 }));
 
 // Read-only drill-down: who completed / didn't complete ONE problem (token-scoped).
@@ -460,6 +487,32 @@ router.post('/upload', upload.single('file'), h(async (req, res) => {
   }
 
   res.json({ college, ...result });
+}));
+
+// Add ONE student individually (admin). Mirrors a single roster row.
+router.post('/students', h(async (req, res) => {
+  const collegeName = (req.body.college || '').trim();
+  const name = (req.body.name || '').trim();
+  const profile = (req.body.url || req.body.profile || req.body.leetcode || '').trim();
+  if (!collegeName) return res.status(400).json({ error: 'College is required.' });
+  if (!name) return res.status(400).json({ error: 'Student name is required.' });
+  const username = parseUsername(profile);
+  if (!username) return res.status(400).json({ error: 'Enter a valid LeetCode profile URL or username.' });
+  const college = await store.getOrCreateCollege(collegeName);
+  const clean = (k) => { const v = (req.body[k] || '').trim(); return v || null; };
+  const id = await store.upsertStudent({
+    college_id: college.id,
+    name,
+    username,
+    profile_url: profile.includes('leetcode.com') ? profile : `https://leetcode.com/u/${username}/`,
+    register_number: clean('register_number'),
+    email: clean('email'),
+    department: clean('department'),
+    section: clean('section'),
+    year: clean('year'),
+    campus: clean('campus'),
+  });
+  res.json({ ok: true, id, username, college });
 }));
 
 // ---- Dashboard --------------------------------------------------------------

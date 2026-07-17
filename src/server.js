@@ -65,6 +65,12 @@ app.get('/view/:token', (req, res) => {
   res.sendFile('view.html', { root: config.publicDir });
 });
 
+// Public questions-only page (no login) — resolved client-side by the token.
+app.get('/q/:token', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile('questions.html', { root: config.publicDir });
+});
+
 // Don't let browsers cache the app files — otherwise a tab (e.g. the student
 // page) can keep running an old student.js/HTML after an update. The data still
 // comes fresh from /api; this only stops stale code/markup being reused.

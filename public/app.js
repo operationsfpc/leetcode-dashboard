@@ -203,10 +203,15 @@ async function loadColleges() {
   // Keep the Upload tab's college dropdown in sync with existing colleges.
   const up = $('#uploadCollege');
   const prevUp = up.value;
-  up.innerHTML = colleges.length
+  const opts = colleges.length
     ? colleges.map((c) => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')
     : '<option value="">No colleges yet — add one in the Colleges tab</option>';
+  up.innerHTML = opts;
   if (colleges.some((c) => c.name === prevUp)) up.value = prevUp;
+  // Mirror the same college list into the single-student form.
+  const ssc = $('#singleStudentCollege');
+  if (ssc) { const prev = ssc.value; ssc.innerHTML = opts; if (colleges.some((c) => c.name === prev)) ssc.value = prev; }
+  if (typeof loadSSOptions === 'function') loadSSOptions(); // prefetch dropdown values for the single-student form
 
   const sel = $('#collegeSelect');
   sel.innerHTML = '';
@@ -988,7 +993,9 @@ let comboInput = null;
 
 function renderCombo(options, filter) {
   const f = (filter || '').toLowerCase();
-  const opts = (options || []).filter((o) => o.toLowerCase().includes(f));
+  // Coerce to string — some values (e.g. year "2027") may come through as numbers,
+  // and number.toLowerCase() would throw and break the dropdown.
+  const opts = (options || []).map((o) => String(o)).filter((o) => o.toLowerCase().includes(f));
   comboPop.innerHTML = opts.length
     ? opts.map((o) => `<div class="combo-item">${esc(o)}</div>`).join('')
     : '<div class="combo-empty">No matches — type to add a new one</div>';
@@ -1045,6 +1052,25 @@ attachCombo('#singleTopic', () => topicsForDomain($('#singleDomain').value));
 attachCombo('#practiceDomain', domainOpts);
 attachCombo('#practiceTopic', () => topicsForDomain($('#practiceDomain').value));
 
+// Single-student form: dept/section/year/campus dropdowns from the selected
+// college's existing values (you can still type a new value).
+state.ssOptions = { departments: [], batches: [], campuses: [], years: [] };
+function ssCollegeId() {
+  const name = $('#singleStudentCollege')?.value;
+  const c = Object.values(state.collegesById || {}).find((x) => x.name === name);
+  return c ? c.id : null;
+}
+async function loadSSOptions() {
+  const id = ssCollegeId();
+  if (!id) { state.ssOptions = { departments: [], batches: [], campuses: [], years: [] }; return; }
+  try { state.ssOptions = await api(`/colleges/${id}/options`); } catch {}
+}
+attachCombo('#ssDept', () => state.ssOptions.departments || []);
+attachCombo('#ssSection', () => state.ssOptions.batches || []);
+attachCombo('#ssYear', () => state.ssOptions.years || []);
+attachCombo('#ssCampus', () => state.ssOptions.campuses || []);
+$('#singleStudentCollege')?.addEventListener('change', loadSSOptions);
+
 // Add a single question (own link + topic + difficulty).
 // Per-college "show video links to students" toggle.
 function setVideoToggleLabel() {
@@ -1066,6 +1092,23 @@ $('#videoToggle').addEventListener('click', async () => {
     state.showVideo = next;
     setVideoToggleLabel();
   } catch (e) { /* ignore; label stays */ }
+});
+
+// Generate/show the public questions-only link (reuses the college's share token).
+$('#questionsLinkBtn').addEventListener('click', async () => {
+  const cid = practiceCid();
+  const out = $('#questionsLinkOut');
+  if (!cid) { out.innerHTML = '<span class="msg err">Pick a college first.</span>'; return; }
+  try {
+    const r = await api(`/colleges/${cid}/view-link`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    });
+    const url = location.origin + '/q/' + r.token;
+    out.innerHTML = `<input class="search" style="flex:1;min-width:220px" readonly value="${esc(url)}" />
+      <button class="btn btn-sm btn-ghost" id="qCopy">Copy</button>
+      <a class="btn btn-sm btn-ghost" href="${esc(url)}" target="_blank">Open ↗</a>`;
+    $('#qCopy').addEventListener('click', () => { navigator.clipboard?.writeText(url); $('#qCopy').textContent = 'Copied'; });
+  } catch (e) { out.innerHTML = `<span class="msg err">${esc(e.message)}</span>`; }
 });
 
 $('#addSingleBtn').addEventListener('click', async () => {
@@ -1150,6 +1193,34 @@ $('#uploadBtn').addEventListener('click', async () => {
     pollSync();
     await loadColleges();
   } catch (e) { setMsg('#uploadResult', e.message, 'err'); }
+});
+
+// Add a single student individually.
+$('#addStudentBtn').addEventListener('click', async () => {
+  const college = $('#singleStudentCollege').value.trim();
+  const name = $('#ssName').value.trim();
+  const url = $('#ssUrl').value.trim();
+  if (!college) return setMsg('#addStudentMsg', 'Pick a college.', 'err');
+  if (!name) return setMsg('#addStudentMsg', 'Enter the student name.', 'err');
+  if (!url) return setMsg('#addStudentMsg', 'Enter the LeetCode profile.', 'err');
+  const body = {
+    college, name, url,
+    register_number: $('#ssReg').value.trim(),
+    email: $('#ssEmail').value.trim(),
+    department: $('#ssDept').value.trim(),
+    section: $('#ssSection').value.trim(),
+    year: $('#ssYear').value.trim(),
+    campus: $('#ssCampus').value.trim(),
+  };
+  setMsg('#addStudentMsg', 'Adding…', '');
+  try {
+    const r = await api('/students', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    setMsg('#addStudentMsg', `Added @${r.username}. Syncing…`, 'ok', 5000);
+    // clear the per-student fields, keep college for the next add
+    ['#ssName', '#ssUrl', '#ssReg', '#ssEmail'].forEach((s) => { $(s).value = ''; });
+    if (r.id) { try { await api(`/students/${r.id}/sync`, { method: 'POST' }); } catch {} }
+    await loadColleges();
+  } catch (e) { setMsg('#addStudentMsg', e.message, 'err'); }
 });
 
 // ---- Sync button + polling --------------------------------------------------

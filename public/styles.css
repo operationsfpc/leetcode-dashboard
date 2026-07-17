@@ -349,3 +349,7 @@ textarea, .search, .field input {
 #drawerContent table { width: 100%; table-layout: fixed; }
 #drawerContent th, #drawerContent td { white-space: normal; overflow-wrap: anywhere; word-break: break-word; padding: 6px 6px; font-size: 12px; }
 #drawerContent .toggle-comp { white-space: nowrap; }
+
+/* Question row actions: Video → Difficulty → Solve, aligned */
+.stu-prac-actions { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.stu-prac-diff { display: inline-flex; min-width: 64px; }

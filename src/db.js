@@ -323,7 +323,7 @@ export async function getFilterOptions(collegeId) {
   const distinct = (col) =>
     db.prepare(`SELECT DISTINCT ${col} AS v FROM students WHERE college_id=? AND ${col} IS NOT NULL AND ${col}<>'' ORDER BY ${col}`)
       .all(collegeId).map((r) => r.v);
-  return { batches: distinct('section'), departments: distinct('department'), campuses: distinct('campus') };
+  return { batches: distinct('section'), departments: distinct('department'), campuses: distinct('campus'), years: distinct('year') };
 }
 
 export const getAllStudents = async () => db.prepare('SELECT * FROM students').all();
