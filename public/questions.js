@@ -49,10 +49,13 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeVideoModal(); });
 
-// All topics use the same light-green accent.
+// Green topic accent — a readable darker green in light mode, lighter in dark.
 function topicColor() {
-  return 'hsl(145, 55%, 58%)';
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  return light ? 'hsl(145, 63%, 30%)' : 'hsl(145, 55%, 58%)';
 }
+// Re-render on theme toggle so the topic color updates for the new mode.
+window.__onTheme = () => { if (data) render(); };
 
 // ---- Render ----------------------------------------------------------------
 let data = null, selDomain = '__all';

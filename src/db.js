@@ -170,6 +170,12 @@ export const listColleges = async () =>
      FROM colleges c ORDER BY c.name`
   ).all();
 
+// Master on/off: set one mode across EVERY college at once (windows untouched).
+export async function setAllCollegesMode({ sync_mode, refresh_mode }) {
+  if (sync_mode) db.prepare('UPDATE colleges SET sync_mode=?').run(sync_mode);
+  if (refresh_mode) db.prepare('UPDATE colleges SET refresh_mode=?').run(refresh_mode);
+}
+
 // Save a college's auto-sync / auto-refresh settings.
 export async function setCollegeSettings(id, s) {
   db.prepare(

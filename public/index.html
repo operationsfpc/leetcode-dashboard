@@ -214,8 +214,13 @@
         <div id="addCollegeMsg" class="msg"></div>
       </div>
       <div class="panel">
-        <div class="panel-head">
+        <div class="panel-head" style="flex-wrap:wrap;gap:10px">
           <h2>Colleges</h2>
+          <div class="row" style="margin:0;gap:6px" title="Set on/off for ALL colleges at once (overrides the per-college controls below)">
+            <span class="hint">All colleges →</span>
+            <select id="allSyncMode" class="filter-sel"><option value="">🛰 Auto-sync…</option><option value="on">🛰 Sync: On</option><option value="off">🛰 Sync: Off</option></select>
+            <select id="allRefreshMode" class="filter-sel"><option value="">🔄 Auto-refresh…</option><option value="on">🔄 Refresh: On</option><option value="off">🔄 Refresh: Off</option></select>
+          </div>
           <span class="hint">Student login page: <a id="studentLink" href="/student" target="_blank">/student</a></span>
         </div>
         <div class="table-wrap">

@@ -177,6 +177,25 @@ async function loadCollegesTab() {
   }));
 }
 
+// Master on/off for auto-sync / auto-refresh across ALL colleges.
+async function applyBulkMode(body, label) {
+  if (!confirm(`Set ${label} for EVERY college?`)) return false;
+  try {
+    await api('/colleges/bulk-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await loadColleges();       // refresh the cached settings (browser refresh gating)
+    await loadCollegesTab();    // redraw the per-college rows
+    return true;
+  } catch (e) { alert(e.message); return false; }
+}
+$('#allSyncMode')?.addEventListener('change', async (e) => {
+  const v = e.target.value; e.target.value = '';
+  if (v) await applyBulkMode({ sync_mode: v }, `auto-sync ${v.toUpperCase()}`);
+});
+$('#allRefreshMode')?.addEventListener('change', async (e) => {
+  const v = e.target.value; e.target.value = '';
+  if (v) await applyBulkMode({ refresh_mode: v }, `auto-refresh ${v.toUpperCase()}`);
+});
+
 $('#addCollegeBtn').addEventListener('click', async () => {
   const name = $('#newCollegeName').value.trim();
   const code = $('#newCollegeCode').value.trim();

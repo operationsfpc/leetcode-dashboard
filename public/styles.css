@@ -17,9 +17,9 @@
   --panel: #ffffff;
   --panel-2: #eceef2;
   --border: #d9dde4;
-  --text: #1b1f27;
-  --muted: #5b6472;
-  --medium: #b07d00; /* darker amber for contrast on white */
+  --text: #0c1017;   /* darker main text for stronger contrast on white */
+  --muted: #3c4350;  /* darker muted/secondary text */
+  --medium: #9a6d00; /* darker amber for contrast on white */
 }
 * { box-sizing: border-box; }
 body {

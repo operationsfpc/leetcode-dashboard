@@ -80,6 +80,11 @@ export async function listColleges() {
   return rows;
 }
 
+export async function setAllCollegesMode({ sync_mode, refresh_mode }) {
+  if (sync_mode) await q('UPDATE colleges SET sync_mode=$1', [sync_mode]);
+  if (refresh_mode) await q('UPDATE colleges SET refresh_mode=$1', [refresh_mode]);
+}
+
 export async function setCollegeSettings(id, s) {
   await q(
     `UPDATE colleges SET sync_mode=$1, sync_from=$2, sync_to=$3, refresh_mode=$4, refresh_from=$5, refresh_to=$6 WHERE id=$7`,

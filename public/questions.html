@@ -41,6 +41,7 @@
         root.setAttribute('data-theme', t);
         try { localStorage.setItem('lc_theme', t); } catch (e) {}
         icon();
+        if (window.__onTheme) window.__onTheme();
       });
     })();
   </script>

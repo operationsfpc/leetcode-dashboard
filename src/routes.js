@@ -820,6 +820,13 @@ router.post('/sync', (req, res) => {
 
 router.get('/sync/state', (req, res) => res.json(getSyncState()));
 
+// Master on/off across all colleges at once.
+router.post('/colleges/bulk-settings', h(async (req, res) => {
+  const clean = (m) => (['on', 'off', 'scheduled'].includes(m) ? m : null);
+  await store.setAllCollegesMode({ sync_mode: clean(req.body?.sync_mode), refresh_mode: clean(req.body?.refresh_mode) });
+  res.json({ ok: true });
+}));
+
 // Per-college auto-sync + auto-refresh settings.
 router.post('/colleges/:id/settings', h(async (req, res) => {
   const clean = (m) => (['on', 'off', 'scheduled'].includes(m) ? m : 'on');
