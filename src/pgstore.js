@@ -467,12 +467,13 @@ export async function listDomains(collegeId) {
 }
 
 export async function setPracticeOrder(collegeId, kind, names) {
+  const unique = [...new Set(names)]; // guard against duplicate names (PK is college+kind+name)
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('DELETE FROM practice_order WHERE college_id=$1 AND kind=$2', [collegeId, kind]);
-    for (let i = 0; i < names.length; i++) {
-      await client.query('INSERT INTO practice_order(college_id, kind, name, position) VALUES ($1,$2,$3,$4)', [collegeId, kind, names[i], i]);
+    for (let i = 0; i < unique.length; i++) {
+      await client.query('INSERT INTO practice_order(college_id, kind, name, position) VALUES ($1,$2,$3,$4)', [collegeId, kind, unique[i], i]);
     }
     await client.query('COMMIT');
   } catch (e) {
@@ -503,6 +504,11 @@ export async function countPracticeProblems(collegeId) {
 
 export async function deletePracticeProblem(id) {
   await q('DELETE FROM practice_problems WHERE id=$1', [id]);
+}
+
+export async function deleteAllPracticeProblems(collegeId) {
+  const { rowCount } = await q('DELETE FROM practice_problems WHERE college_id=$1', [collegeId]);
+  return rowCount;
 }
 
 // Remove every question under one domain+topic. null matches "Uncategorized".

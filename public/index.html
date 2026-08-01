@@ -24,7 +24,6 @@
 
   <header class="topbar">
     <div class="brand">
-      <span class="logo">⚡</span>
       <div>
         <h1>LeetCode Progress</h1>
         <p class="sub">Admin dashboard</p>
@@ -182,15 +181,26 @@
         <div id="completionDist" class="dist-list"></div>
       </div>
       <div class="panel">
-        <div class="panel-head">
+        <div class="panel-head" style="flex-wrap:wrap;gap:8px">
           <h2>Assigned problems &amp; completion</h2>
-          <button id="reorderToggle" class="btn btn-sm btn-ghost">⇅ Reorder domains / topics</button>
+          <div class="row" style="margin:0;gap:8px">
+            <button id="reorderToggle" class="btn btn-sm btn-ghost">⇅ Reorder domains / topics</button>
+            <button id="removeAllPracticeBtn" class="btn btn-sm btn-danger" title="Delete every question from this college">🗑 Remove all questions</button>
+          </div>
         </div>
         <div id="reorderPanel" style="display:none;margin-bottom:14px">
           <p class="hint" style="margin-top:0">Drag to reorder — the new order applies to the tabs and to every student/shared view.</p>
+          <label class="hint" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="reorderAllColleges" /> Apply this order to <b>all colleges</b>
+          </label>
           <div class="reorder-cols">
             <div><div class="reorder-label">Domains</div><div id="domainOrderList" class="sortlist"></div></div>
-            <div><div class="reorder-label">Topics</div><div id="topicOrderList" class="sortlist"></div></div>
+            <div>
+              <div class="reorder-label" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                Topics in <select id="reorderTopicDomain" class="filter-sel" style="text-transform:none;letter-spacing:0"></select>
+              </div>
+              <div id="topicOrderList" class="sortlist"></div>
+            </div>
           </div>
         </div>
         <div id="domainTabs" class="dom-tabs"></div>

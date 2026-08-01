@@ -719,6 +719,7 @@ router.get('/colleges/:id/practice-completers', h(async (req, res) => {
 // Save a custom order for domains or topics (admin drag-to-reorder).
 router.post('/colleges/:id/practice-order', h(async (req, res) => {
   const collegeId = Number(req.params.id);
+  if (!Number.isInteger(collegeId)) return res.status(400).json({ error: 'Pick a specific college to reorder.' });
   const kind = req.body?.kind;
   const names = req.body?.names;
   if (!['domain', 'topic'].includes(kind) || !Array.isArray(names))
@@ -727,18 +728,29 @@ router.post('/colleges/:id/practice-order', h(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Apply a domain/topic order to EVERY college at once.
+router.post('/practice-order/all-colleges', h(async (req, res) => {
+  const kind = req.body?.kind;
+  const names = req.body?.names;
+  if (!['domain', 'topic'].includes(kind) || !Array.isArray(names))
+    return res.status(400).json({ error: 'kind (domain|topic) and names[] are required.' });
+  const clean = names.map((n) => String(n));
+  const colleges = await store.listColleges();
+  for (const c of colleges) await store.setPracticeOrder(c.id, kind, clean);
+  res.json({ ok: true, colleges: colleges.length });
+}));
+
 // Add practice problems. Accepts either:
 //   - JSON body { links: "url1\nurl2..." }  (textarea paste), or
 //   - a multipart Excel file with Title/URL/Difficulty columns.
-router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) => {
-  const collegeId = Number(req.params.id);
-  const formTopic = (req.body.topic || '').trim() || null;      // applies to all when set
+// Parse the add-problems request (Excel file OR paired link/video textareas) into a list of items.
+function buildPracticeItems(req) {
+  const formTopic = (req.body.topic || '').trim() || null;
   const formDomain = (req.body.domain || '').trim() || null;
   const formDifficulty = (req.body.difficulty || '').trim() || null;
   const formVideo = (req.body.video || '').trim() || null;
   const formDue = normDate(req.body.dueDate || req.body.due_date);
   const items = [];
-
   if (req.file) {
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
@@ -748,7 +760,7 @@ router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) 
       items.push({
         url,
         title: pick(row, ['title', 'name', 'problem name', 'question']),
-        difficulty: pick(row, ['difficulty', 'level']) || formDifficulty, // row value wins
+        difficulty: pick(row, ['difficulty', 'level']) || formDifficulty,
         topic: pick(row, ['topic', 'category', 'tag']) || formTopic,
         domain: pick(row, ['domain', 'area', 'subject']) || formDomain,
         video: pick(row, ['video', 'video link', 'video url', 'youtube', 'youtube link']) || formVideo,
@@ -756,8 +768,6 @@ router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) 
       });
     }
   } else {
-    // Pair the two textareas by line: question on line N ↔ video on line N.
-    // Split on newlines only (not commas) so line positions stay aligned.
     const linkLines = (req.body.links || '').split(/\r?\n/);
     const videoLines = (req.body.videos || '').split(/\r?\n/);
     linkLines.forEach((raw, i) => {
@@ -767,16 +777,18 @@ router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) 
       items.push({ url, topic: formTopic, domain: formDomain, difficulty: formDifficulty, video, due: formDue });
     });
   }
+  return items;
+}
 
-  if (!items.length) return res.status(400).json({ error: 'No problem links found.' });
-
-  const added = [];
+// Add a list of items to one college. Returns { added, skipped }.
+async function addItemsToCollege(collegeId, items) {
+  let added = 0;
   const skipped = [];
   for (const it of items) {
     const slug = parseProblemSlug(it.url);
     if (!slug) { skipped.push(it.url); continue; }
     const url = it.url.includes('leetcode.com') ? it.url : `https://leetcode.com/problems/${slug}/`;
-    const id = await store.addPracticeProblem({
+    await store.addPracticeProblem({
       college_id: collegeId,
       title: it.title || titleize(slug),
       slug,
@@ -787,14 +799,39 @@ router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) 
       video_url: it.video || null,
       due_date: it.due || null,
     });
-    added.push({ id, slug });
+    added++;
   }
-  res.json({ added: added.length, skipped });
+  return { added, skipped };
+}
+
+// Add questions to ONE college.
+router.post('/colleges/:id/practice', upload.single('file'), h(async (req, res) => {
+  const items = buildPracticeItems(req);
+  if (!items.length) return res.status(400).json({ error: 'No problem links found.' });
+  const r = await addItemsToCollege(Number(req.params.id), items);
+  res.json({ added: r.added, skipped: r.skipped });
+}));
+
+// Add the SAME questions to EVERY college at once.
+router.post('/practice/all-colleges', upload.single('file'), h(async (req, res) => {
+  const items = buildPracticeItems(req);
+  if (!items.length) return res.status(400).json({ error: 'No problem links found.' });
+  const colleges = await store.listColleges();
+  if (!colleges.length) return res.status(400).json({ error: 'No colleges exist yet.' });
+  let skipped = [];
+  for (const c of colleges) { const r = await addItemsToCollege(c.id, items); skipped = r.skipped; }
+  res.json({ added: items.length - skipped.length, skipped, colleges: colleges.length });
 }));
 
 router.delete('/practice/:id', h(async (req, res) => {
   await store.deletePracticeProblem(Number(req.params.id));
   res.json({ ok: true });
+}));
+
+// Remove ALL practice questions from a college.
+router.delete('/colleges/:id/practice-all', h(async (req, res) => {
+  const removed = await store.deleteAllPracticeProblems(Number(req.params.id));
+  res.json({ removed });
 }));
 
 // Remove every question under one domain+topic ("Remove all" on a topic header).

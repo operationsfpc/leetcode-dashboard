@@ -514,9 +514,9 @@ function renderStudents(students) {
           </div>
         </div>
       </td>
-      <td>${s.found ? (s.ranking ? '#' + s.ranking.toLocaleString() : '—') : '<span class="cross">private</span>'}${rankDelta(s)}</td>
+      <td>${s.found ? (s.ranking ? '#' + s.ranking.toLocaleString() : '—') : '<span class="cross">private</span>'}<span class="rank-delta">${rankDelta(s)}</span></td>
       <td>${difficultyCell(s)}</td>
-      <td><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
+      <td class="tot-td"><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
       <td>${practiceCell(s)}</td>
       <td><span class="dot ${s.sync_status}"></span>${fmtAgo(s.last_synced_at)}${s.sync_status === 'error' ? ` <span class="cross" title="${esc(s.sync_error || 'sync failed')}">⚠</span>` : ''}</td>
       <td><button class="btn btn-sm btn-ghost sync-one" data-id="${s.id}">⟳</button></td>
@@ -704,17 +704,22 @@ $('#drawerBackdrop').addEventListener('click', closeDrawer);
 // The Practice tab has its own college selector (state.practiceCollegeId),
 // independent of the dashboard's top-bar selection.
 const practiceCid = () => state.practiceCollegeId || state.collegeId;
+// Where an add goes: one college, or every college when "All colleges" is picked.
+const practiceAddPath = () => (practiceCid() === '__all' ? '/practice/all-colleges' : `/colleges/${practiceCid()}/practice`);
 
 async function populatePracticeColleges() {
   const colleges = await api('/colleges');
   const sel = $('#practiceCollege');
   const cur = practiceCid();
-  sel.innerHTML = colleges.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  if (colleges.some((c) => c.id == cur)) sel.value = cur;
-  state.practiceCollegeId = Number(sel.value) || null;
+  sel.innerHTML = '<option value="__all">🌐 All colleges</option>'
+    + colleges.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (cur === '__all') sel.value = '__all';
+  else if (colleges.some((c) => c.id == cur)) sel.value = String(cur);
+  else sel.value = colleges.length ? String(colleges[0].id) : '__all';
+  state.practiceCollegeId = sel.value === '__all' ? '__all' : (Number(sel.value) || null);
 }
 $('#practiceCollege').addEventListener('change', (e) => {
-  state.practiceCollegeId = Number(e.target.value);
+  state.practiceCollegeId = e.target.value === '__all' ? '__all' : Number(e.target.value);
   // Instant feedback + force repaint for the newly selected college.
   state.practiceSig = null;
   state.practiceDomain = '__all';
@@ -741,6 +746,15 @@ let practiceAbort = null;
 async function loadPractice() {
   const cid = practiceCid();
   if (!cid) return;
+  if (cid === '__all') {
+    // "All colleges" is an add-only mode; the list/breakdown need a specific college.
+    $('#domainTabs').innerHTML = '';
+    $('#completionDist').innerHTML = '';
+    $('#practiceTable').querySelector('tbody').innerHTML =
+      '<tr><td colspan="5" class="empty">Adding to <b>all colleges</b>. Pick a specific college above to view or manage its assigned questions.</td></tr>';
+    setVideoToggleLabel && setVideoToggleLabel();
+    return;
+  }
   practiceAbort?.abort();
   const ctrl = new AbortController();
   practiceAbort = ctrl;
@@ -970,30 +984,56 @@ async function showCompleters(count) {
 
 // ---- Reorder domains / topics (drag & drop) --------------------------------
 let sortInstances = [];
-function openReorderPanel() {
-  const d = state.lastPractice;
-  const fill = (sel, names) => {
-    $(sel).innerHTML = (names && names.length)
-      ? names.map((n) => `<div class="sort-item" data-name="${esc(n)}">⠿ ${esc(n)}</div>`).join('')
-      : '<div class="hint">None yet</div>';
-  };
-  fill('#domainOrderList', d && d.domains);
-  fill('#topicOrderList', d && d.topics);
+function fillSortList(sel, names) {
+  $(sel).innerHTML = (names && names.length)
+    ? names.map((n) => `<div class="sort-item" data-name="${esc(n)}">⠿ ${esc(n)}</div>`).join('')
+    : '<div class="hint">None yet</div>';
+}
+function bindReorderSortables() {
   sortInstances.forEach((s) => s.destroy());
   sortInstances = [];
-  if (window.Sortable) {
-    sortInstances.push(Sortable.create($('#domainOrderList'), { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => saveOrder('domain', '#domainOrderList') }));
-    sortInstances.push(Sortable.create($('#topicOrderList'), { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => saveOrder('topic', '#topicOrderList') }));
-  }
+  if (!window.Sortable) return;
+  sortInstances.push(Sortable.create($('#domainOrderList'), { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => saveOrder('domain', '#domainOrderList') }));
+  sortInstances.push(Sortable.create($('#topicOrderList'), { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => saveOrder('topic', '#topicOrderList') }));
 }
+function renderTopicReorder() {
+  const dom = $('#reorderTopicDomain').value; // selected domain -> only its topics
+  fillSortList('#topicOrderList', topicsForDomain(dom));
+  bindReorderSortables();
+}
+function openReorderPanel() {
+  const d = state.lastPractice;
+  fillSortList('#domainOrderList', d && d.domains);
+  const domains = (d && d.domains) || [];
+  const tdSel = $('#reorderTopicDomain');
+  const prev = tdSel.value;
+  tdSel.innerHTML = domains.map((dn) => `<option value="${esc(dn)}">${esc(dn)}</option>`).join('');
+  if (domains.includes(prev)) tdSel.value = prev; else if (domains.length) tdSel.value = domains[0];
+  renderTopicReorder();
+}
+$('#reorderTopicDomain').addEventListener('change', renderTopicReorder);
+
 async function saveOrder(kind, sel) {
-  const names = [...$(sel).querySelectorAll('.sort-item')].map((el) => el.dataset.name);
+  let names = [...$(sel).querySelectorAll('.sort-item')].map((el) => el.dataset.name);
   if (!names.length) return;
+  // Topics are reordered within the selected domain — merge that new order back
+  // into the full global topic order, keeping other domains' topics in place.
+  if (kind === 'topic') {
+    const full = (state.lastPractice && state.lastPractice.topics) || [];
+    const inDomain = new Set(names);
+    let di = 0;
+    const merged = full.map((t) => (inDomain.has(t) ? names[di++] : t));
+    for (const t of names) if (!full.includes(t)) merged.push(t); // any brand-new topic
+    names = merged;
+  }
+  // Use the all-colleges endpoint when the box is checked OR when "All colleges" is the selected college.
+  const all = $('#reorderAllColleges')?.checked || practiceCid() === '__all';
+  const path = all ? '/practice-order/all-colleges' : `/colleges/${practiceCid()}/practice-order`;
   try {
-    await api(`/colleges/${practiceCid()}/practice-order`, {
+    await api(path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, names }),
     });
-    loadPractice(); // refresh tabs/table in the new order
+    if (!all) loadPractice(); // refresh tabs/table in the new order (per-college only)
   } catch (e) { alert(e.message); }
 }
 $('#reorderToggle').addEventListener('click', () => {
@@ -1102,6 +1142,7 @@ function setVideoToggleLabel() {
 $('#videoToggle').addEventListener('click', async () => {
   const cid = practiceCid();
   if (!cid) return;
+  if (cid === '__all') { alert('Pick a specific college to change its video visibility.'); return; }
   const next = !state.showVideo;
   try {
     await api(`/colleges/${cid}/video-visibility`, {
@@ -1118,6 +1159,7 @@ $('#questionsLinkBtn').addEventListener('click', async () => {
   const cid = practiceCid();
   const out = $('#questionsLinkOut');
   if (!cid) { out.innerHTML = '<span class="msg err">Pick a college first.</span>'; return; }
+  if (cid === '__all') { out.innerHTML = '<span class="msg err">Pick a specific college for its questions link.</span>'; return; }
   try {
     const r = await api(`/colleges/${cid}/view-link`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
@@ -1140,18 +1182,33 @@ $('#addSingleBtn').addEventListener('click', async () => {
   if (!practiceCid()) return setMsg('#singleMsg', 'Pick a college first.', 'err');
   if (!link) return setMsg('#singleMsg', 'Enter a LeetCode link or slug.', 'err');
   try {
-    const r = await api(`/colleges/${practiceCid()}/practice`, {
+    const r = await api(practiceAddPath(), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ links: link, topic, domain, difficulty, video, dueDate }),
     });
     if (r.added) {
-      setMsg('#singleMsg', `Added.`, 'ok', 5000);
+      setMsg('#singleMsg', practiceCid() === '__all' ? `Added to all ${r.colleges} colleges.` : `Added.`, 'ok', 5000);
       $('#singleLink').value = ''; $('#singleVideo').value = ''; // keep topic + difficulty for the next one
     } else {
       setMsg('#singleMsg', 'That link could not be parsed.', 'err');
     }
     loadPractice();
   } catch (e) { setMsg('#singleMsg', e.message, 'err'); }
+});
+
+// Remove ALL questions from the selected college.
+$('#removeAllPracticeBtn').addEventListener('click', async () => {
+  const cid = practiceCid();
+  if (!cid) return;
+  if (cid === '__all') { alert('Pick a specific college to clear its questions.'); return; }
+  const cname = (state.collegesById && state.collegesById[cid] && state.collegesById[cid].name) || 'this college';
+  if (!confirm(`Remove ALL practice questions from “${cname}”?\n\nThis deletes every assigned question and its completion records for this college. It cannot be undone.`)) return;
+  try {
+    const r = await api(`/colleges/${cid}/practice-all`, { method: 'DELETE' });
+    setMsg('#practiceMsg', `Removed ${r.removed} question(s) from “${cname}”.`, 'ok', 5000);
+    state.practiceSig = null;
+    loadPractice();
+  } catch (e) { setMsg('#practiceMsg', e.message, 'err'); }
 });
 
 $('#addPracticeBtn').addEventListener('click', async () => {
@@ -1164,10 +1221,11 @@ $('#addPracticeBtn').addEventListener('click', async () => {
   if (!practiceCid()) return setMsg('#practiceMsg', 'Pick a college first.', 'err');
   if (!links.trim()) return setMsg('#practiceMsg', 'Paste at least one link.', 'err');
   try {
-    const r = await api(`/colleges/${practiceCid()}/practice`, {
+    const r = await api(practiceAddPath(), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ links, videos, topic, domain, difficulty, dueDate }),
     });
-    setMsg('#practiceMsg', `Added ${r.added} problem(s)${topic ? ' under “' + topic + '”' : ''}.` + (r.skipped.length ? ` Skipped ${r.skipped.length}.` : ''), 'ok', 5000);
+    const scope = practiceCid() === '__all' ? ` to all ${r.colleges} colleges` : '';
+    setMsg('#practiceMsg', `Added ${r.added} problem(s)${scope}${topic ? ' under “' + topic + '”' : ''}.` + (r.skipped.length ? ` Skipped ${r.skipped.length}.` : ''), 'ok', 5000);
     $('#practiceLinks').value = ''; $('#practiceVideos').value = '';
     loadPractice();
   } catch (e) { setMsg('#practiceMsg', e.message, 'err'); }
@@ -1185,8 +1243,9 @@ $('#practiceFile').addEventListener('change', async (e) => {
   if (domain) fd.append('domain', domain);
   if (difficulty) fd.append('difficulty', difficulty);
   try {
-    const r = await api(`/colleges/${practiceCid()}/practice`, { method: 'POST', body: fd });
-    setMsg('#practiceMsg', `Added ${r.added} problem(s) from file.`, 'ok', 5000);
+    const r = await api(practiceAddPath(), { method: 'POST', body: fd });
+    const scope = practiceCid() === '__all' ? ` to all ${r.colleges} colleges` : '';
+    setMsg('#practiceMsg', `Added ${r.added} problem(s) from file${scope}.`, 'ok', 5000);
     loadPractice();
   } catch (err) { setMsg('#practiceMsg', err.message, 'err'); }
   e.target.value = '';

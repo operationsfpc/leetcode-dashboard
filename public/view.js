@@ -223,9 +223,9 @@ function renderStudents(students) {
           </div>
         </div>
       </td>
-      <td>${s.found ? (s.ranking ? '#' + s.ranking.toLocaleString() : '—') : '<span class="cross">private</span>'}${rankDelta(s)}</td>
+      <td>${s.found ? (s.ranking ? '#' + s.ranking.toLocaleString() : '—') : '<span class="cross">private</span>'}<span class="rank-delta">${rankDelta(s)}</span></td>
       <td>${difficultyCell(s)}</td>
-      <td><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
+      <td class="tot-td"><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
       <td>${practiceCell(s)}</td>
     </tr>`).join('');
   tbody.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => openStudent(tr.dataset.id)));

@@ -512,12 +512,13 @@ export const listDomains = async (collegeId) =>
 
 // Save a custom order for domains or topics (positions = array index).
 export async function setPracticeOrder(collegeId, kind, names) {
+  const unique = [...new Set(names)]; // guard against duplicate names (PK is college+kind+name)
   const del = db.prepare('DELETE FROM practice_order WHERE college_id=? AND kind=?');
   const ins = db.prepare('INSERT INTO practice_order(college_id, kind, name, position) VALUES (?,?,?,?)');
   db.exec('BEGIN');
   try {
     del.run(collegeId, kind);
-    names.forEach((n, i) => ins.run(collegeId, kind, n, i));
+    unique.forEach((n, i) => ins.run(collegeId, kind, n, i));
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
@@ -533,6 +534,11 @@ export const countPracticeProblems = async (collegeId) =>
 
 export const deletePracticeProblem = async (id) =>
   db.prepare('DELETE FROM practice_problems WHERE id=?').run(id);
+
+// Remove every practice question for a college.
+export async function deleteAllPracticeProblems(collegeId) {
+  return db.prepare('DELETE FROM practice_problems WHERE college_id=?').run(collegeId).changes;
+}
 
 // Remove every question under one domain+topic. `domain`/`topic` may be null to
 // match the "Uncategorized" bucket (NULL or empty string).
