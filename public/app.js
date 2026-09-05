@@ -1224,8 +1224,7 @@ $('#addPracticeBtn').addEventListener('click', async () => {
     const r = await api(practiceAddPath(), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ links, videos, topic, domain, difficulty, dueDate }),
     });
-    const scope = practiceCid() === '__all' ? ` to all ${r.colleges} colleges` : '';
-    setMsg('#practiceMsg', `Added ${r.added} problem(s)${scope}${topic ? ' under “' + topic + '”' : ''}.` + (r.skipped.length ? ` Skipped ${r.skipped.length}.` : ''), 'ok', 5000);
+    setMsg('#practiceMsg', practiceAddSummary(r, topic), 'ok', 9000);
     $('#practiceLinks').value = ''; $('#practiceVideos').value = '';
     loadPractice();
   } catch (e) { setMsg('#practiceMsg', e.message, 'err'); }
@@ -1242,14 +1241,29 @@ $('#practiceFile').addEventListener('change', async (e) => {
   if (topic) fd.append('topic', topic); // fallbacks for rows missing these columns
   if (domain) fd.append('domain', domain);
   if (difficulty) fd.append('difficulty', difficulty);
+  setMsg('#practiceMsg', 'Uploading…', '');
   try {
     const r = await api(practiceAddPath(), { method: 'POST', body: fd });
-    const scope = practiceCid() === '__all' ? ` to all ${r.colleges} colleges` : '';
-    setMsg('#practiceMsg', `Added ${r.added} problem(s) from file${scope}.`, 'ok', 5000);
+    setMsg('#practiceMsg', practiceAddSummary(r, topic, true), 'ok', 12000);
     loadPractice();
   } catch (err) { setMsg('#practiceMsg', err.message, 'err'); }
   e.target.value = '';
 });
+
+// Build a clear result summary: how many added, to which college(s), how many skipped.
+function practiceAddSummary(r, topic, fromFile) {
+  const cid = practiceCid();
+  const scope = cid === '__all'
+    ? `all ${r.colleges} colleges`
+    : `“${(state.collegesById && state.collegesById[cid] && state.collegesById[cid].name) || 'this college'}”`;
+  const skipped = (r.skipped && r.skipped.length) || 0;
+  const total = r.added + skipped;
+  let msg = `✅ Added ${r.added}${skipped ? ' of ' + total : ''} question(s)${fromFile ? ' from the sheet' : ''} to ${scope}`;
+  if (topic) msg += ` under “${topic}”`;
+  msg += '.';
+  if (skipped) msg += `\n⚠ Skipped ${skipped} row(s) — couldn’t read a valid LeetCode link.`;
+  return msg;
+}
 
 // ---- Upload tab -------------------------------------------------------------
 $('#uploadBtn').addEventListener('click', async () => {
