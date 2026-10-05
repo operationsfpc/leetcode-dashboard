@@ -1,73 +1,33 @@
-# Deploying the LeetCode Dashboard (free, on Render)
+# Deploying the LeetCode Dashboard
 
-This app needs a host that keeps a Node process running (for the auto-sync
-scheduler and admin sessions). Render's free tier does that. The free instance
-**sleeps after ~15 minutes of inactivity** — see "Keeping it awake" below.
-
-Your database is separate (Supabase) and is not deployed here.
+This app can be deployed on **Vercel** or **Render** with a Postgres database (such as Supabase).
 
 ---
 
-## Before you start
+## Deploying on Vercel
 
-- [ ] Code is in a **GitHub** repo (steps below if not).
-- [ ] You have your **Supabase connection string** (Supabase → Project → Settings → Database → Connection string → URI).
-- [ ] You ran `db/schema.supabase.sql` once in the Supabase SQL editor.
-- [ ] You know your admin **username** and **password**.
+### 1. Requirements & Environment Variables
+In your Vercel Project Settings → **Environment Variables**, add:
+- `SUPABASE_DB_URL` — your Postgres / Supabase connection string URI (e.g. `postgresql://postgres.[ref]:[pass]@aws-0-[region].pooler.supabase.com:6543/postgres`)
+- `DB_DRIVER` — `supabase`
+- `ADMIN_USERNAME` — your chosen admin username (default: `admin`)
+- `ADMIN_PASSWORD` — your chosen admin password
 
-> Never commit `.env`. Secrets go in the Render dashboard, not in git.
+### 2. Deploy to Vercel
+1. Push your repository to GitHub.
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → Import your repository.
+3. Keep the default settings (`vercel.json` and `api/index.js` handle routing automatically).
+4. Add the environment variables above and click **Deploy**.
 
----
-
-## 1. Put the code on GitHub (skip if already there)
-
-```bash
-cd "your project folder"
-git init
-git add .
-git commit -m "Deploy"
-# create an empty repo on github.com first, then:
-git remote add origin https://github.com/<you>/<repo>.git
-git push -u origin main
-```
-
-## 2. Create the Render service
-
-1. Sign up at **render.com** (no credit card needed for the free tier).
-2. Click **New → Blueprint**.
-3. Connect your GitHub and pick this repo. Render reads `render.yaml`.
-4. When prompted, paste the three secret values:
-   - `SUPABASE_DB_URL` — your Supabase URI connection string
-   - `ADMIN_USERNAME`
-   - `ADMIN_PASSWORD`
-5. Click **Apply / Deploy**.
-
-(No Blueprint? Use **New → Web Service** instead: Build `npm install`,
-Start `node src/server.js`, Instance type **Free**, then add the same four
-environment variables manually: `DB_DRIVER=supabase` plus the three secrets.)
-
-## 3. Verify
-
-- Open the Render URL (e.g. `https://leetcode-dashboard.onrender.com`).
-- The footer should read **DB: Supabase (Postgres)** (green). If it says
-  SQLite, your `SUPABASE_DB_URL` is wrong or unset.
-- Log into the admin with your username/password.
-
-## 4. Point the Chrome extension at the live URL
-
-In the extension popup, set the dashboard URL to your Render URL (not localhost),
-and enter the admin username/password.
+> **Note on Background Cron/Syncing on Vercel:**  
+> Vercel Serverless Functions sleep between requests. For automatic background student syncs on Vercel, you can set up a free scheduled trigger (such as GitHub Actions cron or cron-job.org) or use Render if you want a continuous background scheduler.
 
 ---
 
-## Keeping it awake (so auto-sync keeps running on the free tier)
+## Deploying on Render
 
-The free instance sleeps when idle, which pauses the 30-second sync. To keep it
-awake for free, set up an uptime pinger to hit the URL every ~10 minutes:
+1. Sign up at **render.com** (free tier).
+2. Click **New → Blueprint** and connect this repository (Render reads `render.yaml`).
+3. Set `SUPABASE_DB_URL`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD`.
+4. Click **Apply / Deploy**.
 
-1. Go to **uptimerobot.com** or **cron-job.org** (both free).
-2. Add an HTTP(s) monitor for `https://<your-app>.onrender.com/api/meta`,
-   interval 5–10 minutes.
-
-This keeps the process alive so the scheduler runs. (Or upgrade to Render's
-$7/month instance, which never sleeps — cleaner, no pinger needed.)

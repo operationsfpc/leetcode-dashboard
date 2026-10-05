@@ -46,7 +46,7 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD || '',
 
   // Data layer: 'sqlite' (local file, default) or 'supabase' (cloud Postgres).
-  dbDriver: (process.env.DB_DRIVER || 'sqlite').toLowerCase(),
+  dbDriver: (process.env.DB_DRIVER || (process.env.SUPABASE_DB_URL || process.env.DATABASE_URL ? 'supabase' : 'sqlite')).toLowerCase(),
 
   // Supabase / Postgres connection. Get these from your Supabase project:
   //   Settings → Database → Connection string (URI)  -> SUPABASE_DB_URL

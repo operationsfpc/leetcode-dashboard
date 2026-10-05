@@ -309,7 +309,9 @@ async function loadDashboard(opts = {}) {
     d = await api(`/colleges/${state.collegeId}/dashboard?${qs}`, { signal: ctrl.signal });
   } catch (e) {
     if (e.name === 'AbortError' || /abort/i.test(e.message || '')) return; // superseded by a newer load
-    throw e;
+    if (/admin/i.test(e.message || '')) return; // handled by showAdminLogin
+    console.warn('Dashboard load warning:', e.message);
+    return;
   }
   state.students = d.students;
   state.dash.total = d.total;
@@ -1510,8 +1512,8 @@ setInterval(() => {
   if ($('#adminLogin').classList.contains('show')) return;  // not logged in
   if ($('#drawer').classList.contains('open')) return;      // don't disrupt an open student drawer
   const active = document.querySelector('.tab.active')?.dataset.tab;
-  if (active === 'dashboard') { if (refreshActiveFor(state.collegeId)) loadDashboard({ chart: false }); }
-  else if (active === 'practice') { if (refreshActiveFor(practiceCid())) loadPractice(); }
+  if (active === 'dashboard') { if (refreshActiveFor(state.collegeId)) loadDashboard({ chart: false }).catch(() => {}); }
+  else if (active === 'practice') { if (refreshActiveFor(practiceCid())) loadPractice().catch(() => {}); }
 }, 2000);
 
 // Refresh the monthly chart on a slower cadence (it's cached server-side, and
@@ -1521,5 +1523,5 @@ setInterval(() => {
   if ($('#adminLogin').classList.contains('show')) return;
   if (document.querySelector('.tab.active')?.dataset.tab !== 'dashboard') return;
   if (!refreshActiveFor(state.collegeId)) return;
-  loadMonthly();
+  loadMonthly().catch(() => {});
 }, 20000);

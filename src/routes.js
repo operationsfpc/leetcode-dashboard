@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import XLSX from 'xlsx';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHmac, randomBytes } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 import { store } from './store.js';
@@ -20,16 +20,45 @@ const adminLoginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standar
 const studentAuthLimiter = rateLimit({ windowMs: 5 * 60 * 1000, max: Number(process.env.STUDENT_RATE_MAX) || 100, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many failed attempts. Please wait a moment and retry.' } });
 
 // ---- Admin authentication ---------------------------------------------------
-// Single shared password (config.adminPassword). Login returns a token kept in
-// memory; admin requests must send it as the x-admin-token header.
-const adminTokens = new Map(); // token -> expiry (ms epoch)
+// Single shared password (config.adminPassword). Login returns a cryptographically
+// signed HMAC token so authentication works across serverless lambdas and process restarts.
+
+const revokedTokens = new Set();
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // sessions expire after 12 hours
+
+function getSigningSecret() {
+  return config.adminPassword || process.env.SESSION_SECRET || 'lc-admin-token-signing-key';
+}
+
+function generateAdminToken() {
+  const payload = JSON.stringify({
+    u: config.adminUsername,
+    exp: Date.now() + TOKEN_TTL_MS,
+    nonce: randomBytes(8).toString('hex'),
+  });
+  const encoded = Buffer.from(payload, 'utf8').toString('base64url');
+  const sig = createHmac('sha256', getSigningSecret()).update(encoded).digest('base64url');
+  return `${encoded}.${sig}`;
+}
+
 function tokenValid(token) {
-  if (!token) return false;
-  const exp = adminTokens.get(token);
-  if (!exp) return false;
-  if (Date.now() > exp) { adminTokens.delete(token); return false; }
-  return true;
+  if (!token || typeof token !== 'string') return false;
+  if (revokedTokens.has(token)) return false;
+
+  const parts = token.split('.');
+  if (parts.length === 2) {
+    const [encoded, sig] = parts;
+    const expectedSig = createHmac('sha256', getSigningSecret()).update(encoded).digest('base64url');
+    if (sig !== expectedSig) return false;
+    try {
+      const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+      if (!payload.exp || Date.now() > payload.exp) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 // Videos are shown by default; only an explicit "off" (0 / false) hides them.
@@ -71,8 +100,7 @@ router.post('/admin/login', adminLoginLimiter, (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   if (username === config.adminUsername && password === config.adminPassword) {
-    const token = randomUUID();
-    adminTokens.set(token, Date.now() + TOKEN_TTL_MS);
+    const token = generateAdminToken();
     return res.json({ ok: true, token });
   }
   return res.status(401).json({ error: 'Incorrect admin username or password.' });
@@ -80,7 +108,7 @@ router.post('/admin/login', adminLoginLimiter, (req, res) => {
 
 router.post('/admin/logout', (req, res) => {
   const t = req.get('x-admin-token');
-  if (t) adminTokens.delete(t); // invalidate server-side
+  if (t) revokedTokens.add(t); // invalidate in current instance
   res.json({ ok: true });
 });
 

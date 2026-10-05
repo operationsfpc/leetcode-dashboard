@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import helmet from 'helmet';
 import { config } from './config.js';
@@ -5,16 +7,8 @@ import { router } from './routes.js';
 import { startScheduler } from './scheduler.js';
 import { initStore } from './store.js';
 
-try {
-  await initStore(); // connect/migrate the chosen data layer before serving
-} catch (e) {
-  console.error(`\n[startup] Data layer failed to initialize:\n  ${e.message}\n`);
-  console.error('  Check DB_DRIVER and your SUPABASE_* env vars (see README / .env.example).');
-  process.exit(1);
-}
-
 const app = express();
-app.set('trust proxy', 1); // behind a hosting proxy (Render/Railway) — correct client IPs for rate limiting
+app.set('trust proxy', 1); // behind a hosting proxy (Vercel/Render/Railway) — correct client IPs for rate limiting
 
 // Security headers. CSP allows our inline scripts/styles + the Chart.js CDN, and
 // blocks framing (anti-clickjacking).
@@ -25,7 +19,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'https://i.ytimg.com'],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://*.jsdelivr.net'],
       frameSrc: ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'], // embedded video player
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
@@ -80,10 +74,40 @@ app.use(express.static(config.publicDir, {
   },
 }));
 
-app.listen(config.port, () => {
-  console.log(`\n  LeetCode Admin Dashboard`);
-  console.log(`  → http://localhost:${config.port}`);
-  console.log(`  mode: ${config.mock ? 'MOCK (fake data)' : 'LIVE (scraping leetcode.com)'}`);
-  console.log(`  admin auth: ${config.adminPassword ? 'ON (password required)' : 'OFF — set ADMIN_PASSWORD to protect the admin dashboard'}`);
-  startScheduler();
-});
+let initialized = false;
+let initPromise = null;
+export async function initApp() {
+  if (initialized) return;
+  if (!initPromise) {
+    initPromise = initStore().then(() => {
+      initialized = true;
+    });
+  }
+  return initPromise;
+}
+
+// Check if file is being executed directly in Node
+const currentFilePath = fileURLToPath(import.meta.url);
+const isDirectRun = process.argv[1] && (
+  path.resolve(process.argv[1]) === path.resolve(currentFilePath) ||
+  process.argv[1].endsWith('server.js')
+);
+
+if (isDirectRun && !process.env.VERCEL) {
+  try {
+    await initApp();
+    app.listen(config.port, () => {
+      console.log(`\n  LeetCode Admin Dashboard`);
+      console.log(`  → http://localhost:${config.port}`);
+      console.log(`  mode: ${config.mock ? 'MOCK (fake data)' : 'LIVE (scraping leetcode.com)'}`);
+      console.log(`  admin auth: ${config.adminPassword ? 'ON (password required)' : 'OFF — set ADMIN_PASSWORD to protect the admin dashboard'}`);
+      startScheduler();
+    });
+  } catch (e) {
+    console.error(`\n[startup] Data layer failed to initialize:\n  ${e.message}\n`);
+    console.error('  Check DB_DRIVER and your SUPABASE_* env vars (see README / .env.example).');
+    process.exit(1);
+  }
+}
+
+export default app;
