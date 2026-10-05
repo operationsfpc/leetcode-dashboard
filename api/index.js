@@ -1,6 +1,9 @@
 import app, { initApp } from '../src/server.js';
 
 export default async function handler(req, res) {
+  res.setHeader('x-app-version', '2026-10-05-v3');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
   try {
     await initApp();
   } catch (e) {
