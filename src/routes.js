@@ -123,7 +123,7 @@ router.use((req, res, next) => {
 const h = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((e) => {
     console.error('[route]', req.method, req.path, '-', e);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error.' });
+    if (!res.headersSent) res.status(500).json({ error: e.message || 'Internal server error.' });
   });
 
 const titleize = (slug) =>
