@@ -1,9 +1,9 @@
 {
   "version": 2,
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.js"
-    }
+    { "source": "/student", "destination": "/student.html" },
+    { "source": "/view/:token*", "destination": "/view.html" },
+    { "source": "/q/:token*", "destination": "/questions.html" },
+    { "source": "/api/:path*", "destination": "/api/index.js" }
   ]
 }

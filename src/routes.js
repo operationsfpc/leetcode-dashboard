@@ -67,7 +67,9 @@ const videoShown = (col) => !(col && (col.show_video === 0 || col.show_video ===
 
 // Endpoints that stay open regardless of admin auth (student + shared-link + auth itself).
 function isPublicReq(req) {
-  const p = req.path, m = req.method;
+  let p = (req.path || '').replace(/^\/api/, '');
+  if (!p.startsWith('/')) p = '/' + p;
+  const m = req.method;
   if (m === 'OPTIONS') return true;
   if (p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta') return true;
   if (m === 'GET' && (p === '/template' || p === '/practice-template')) return true; // blank downloads, no data
