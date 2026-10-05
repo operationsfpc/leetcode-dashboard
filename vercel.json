@@ -4,6 +4,6 @@
     { "source": "/student", "destination": "/student.html" },
     { "source": "/view/:token*", "destination": "/view.html" },
     { "source": "/q/:token*", "destination": "/questions.html" },
-    { "source": "/api/:path*", "destination": "/api/index.js" }
+    { "source": "/api/(.*)", "destination": "/api/index.js?_url=$1" }
   ]
 }

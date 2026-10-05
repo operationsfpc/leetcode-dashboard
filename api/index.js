@@ -7,25 +7,25 @@ export default async function handler(req, res) {
     console.error('[vercel serverless error] init failed:', e);
     return res.status(500).json({ error: 'Database initialization failed: ' + e.message });
   }
-  // Restore the original request URL from Vercel headers if rewritten
-  const original = req.headers['x-matched-path'] || req.headers['x-original-url'] || req.headers['x-forwarded-uri'];
-  if (original && !original.startsWith('/api/index.js') && !original.startsWith('/api/index')) {
-    const queryIdx = (req.url || '').indexOf('?');
-    const qs = queryIdx !== -1 && !original.includes('?') ? req.url.slice(queryIdx) : '';
-    req.url = original + qs;
-  } else if (req.url && (req.url.startsWith('/api/index.js') || req.url === '/api' || req.url.startsWith('/api?'))) {
-    try {
-      const host = req.headers.host || 'localhost';
-      const urlObj = new URL(req.url, `https://${host}`);
-      const subpath = urlObj.searchParams.get('0') || urlObj.searchParams.get('path');
-      if (subpath) {
-        urlObj.searchParams.delete('0');
-        urlObj.searchParams.delete('path');
-        const remainingQs = urlObj.searchParams.toString();
-        req.url = '/api/' + subpath.replace(/^\/+/, '') + (remainingQs ? '?' + remainingQs : '');
+  // 1. Check if rewrite passed explicit ?_url= parameter
+  try {
+    const host = req.headers.host || 'localhost';
+    const parsed = new URL(req.url, `https://${host}`);
+    const explicitUrl = parsed.searchParams.get('_url');
+    if (explicitUrl) {
+      parsed.searchParams.delete('_url');
+      const remaining = parsed.searchParams.toString();
+      req.url = '/api/' + explicitUrl.replace(/^\/+/, '') + (remaining ? '?' + remaining : '');
+    } else {
+      // 2. Check headers
+      const matched = req.headers['x-matched-path'] || req.headers['x-original-url'] || req.headers['x-forwarded-uri'];
+      if (matched && !matched.startsWith('/api/index.js') && !matched.startsWith('/api/index')) {
+        const qIdx = (req.url || '').indexOf('?');
+        const qs = qIdx !== -1 && !matched.includes('?') ? req.url.slice(qIdx) : '';
+        req.url = matched + qs;
       }
-    } catch {}
-  }
+    }
+  } catch {}
 
   // Ensure req.url has /api prefix for Express router mounting
   if (req.url && !req.url.startsWith('/api')) {

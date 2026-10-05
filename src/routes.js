@@ -82,13 +82,7 @@ function isPublicReq(req) {
   return false;
 }
 
-router.use((req, res, next) => {
-  if (!config.adminPassword) return next(); // auth disabled
-  if (isPublicReq(req)) return next();
-  if (tokenValid(req.get('x-admin-token'))) return next();
-  return res.status(401).json({ error: 'Admin login required.' });
-});
-
+// ---- Public Auth & Meta endpoints (Always open) -----------------------------
 router.get('/admin/status', (req, res) => res.json({ authRequired: !!config.adminPassword }));
 
 // Which database is actually live (so the admin can confirm Supabase vs local SQLite).
@@ -112,6 +106,14 @@ router.post('/admin/logout', (req, res) => {
   const t = req.get('x-admin-token');
   if (t) revokedTokens.add(t); // invalidate in current instance
   res.json({ ok: true });
+});
+
+// Admin auth gatekeeper for all admin routes below
+router.use((req, res, next) => {
+  if (!config.adminPassword) return next(); // auth disabled
+  if (isPublicReq(req)) return next();
+  if (tokenValid(req.get('x-admin-token'))) return next();
+  return res.status(401).json({ error: 'Admin login required.' });
 });
 
 // Wrap async handlers so a rejected promise becomes a 500 instead of a hung request.
