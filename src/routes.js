@@ -67,31 +67,32 @@ const videoShown = (col) => !(col && (col.show_video === 0 || col.show_video ===
 
 // Endpoints that stay open regardless of admin auth (student + shared-link + auth itself).
 function isPublicReq(req) {
-  let p = (req.path || '').replace(/^\/api/, '');
+  let p = req.path || '';
+  p = p.replace(/^\/api/, '');
   if (!p.startsWith('/')) p = '/' + p;
   const m = req.method;
   if (m === 'OPTIONS') return true;
-  if (p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta') return true;
+  if (p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta' || p.includes('admin/login') || p.includes('admin/status') || p.includes('meta')) return true;
   if (m === 'GET' && (p === '/template' || p === '/practice-template')) return true; // blank downloads, no data
-  if (m === 'GET' && p === '/colleges') return true;                       // student login dropdown
-  if (m === 'GET' && /^\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
-  if (m === 'POST' && (p === '/student/login' || p === '/student/register')) return true;
-  if (m === 'GET' && /^\/student\/\d+\/dashboard$/.test(p)) return true;
-  if (m === 'GET' && /^\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion)?$/.test(p)) return true; // shared read-only link
-  if (m === 'GET' && /^\/public\/practice\/[^/]+$/.test(p)) return true; // public questions-only list
+  if (m === 'GET' && (p === '/colleges' || p.endsWith('/colleges'))) return true;    // student login dropdown
+  if (m === 'GET' && /\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
+  if (m === 'POST' && (p === '/student/login' || p === '/student/register' || p.includes('student/login') || p.includes('student/register'))) return true;
+  if (m === 'GET' && /\/student\/\d+\/dashboard$/.test(p)) return true;
+  if (m === 'GET' && /\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion)?$/.test(p)) return true; // shared read-only link
+  if (m === 'GET' && /\/public\/practice\/[^/]+$/.test(p)) return true; // public questions-only list
   return false;
 }
 
 // ---- Public Auth & Meta endpoints (Always open) -----------------------------
-router.get('/admin/status', (req, res) => res.json({ authRequired: !!config.adminPassword }));
+router.get(['/admin/status', '/api/admin/status'], (req, res) => res.json({ authRequired: !!config.adminPassword }));
 
 // Which database is actually live (so the admin can confirm Supabase vs local SQLite).
-router.get('/meta', (req, res) => res.json({
+router.get(['/meta', '/api/meta'], (req, res) => res.json({
   driver: config.dbDriver === 'supabase' ? 'Supabase (Postgres)' : 'SQLite (local)',
   driverKey: config.dbDriver === 'supabase' ? 'supabase' : 'sqlite',
 }));
 
-router.post('/admin/login', adminLoginLimiter, (req, res) => {
+router.post(['/admin/login', '/api/admin/login'], adminLoginLimiter, (req, res) => {
   if (!config.adminPassword) return res.json({ ok: true, authRequired: false, token: '' });
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
@@ -102,7 +103,7 @@ router.post('/admin/login', adminLoginLimiter, (req, res) => {
   return res.status(401).json({ error: 'Incorrect admin username or password.' });
 });
 
-router.post('/admin/logout', (req, res) => {
+router.post(['/admin/logout', '/api/admin/logout'], (req, res) => {
   const t = req.get('x-admin-token');
   if (t) revokedTokens.add(t); // invalidate in current instance
   res.json({ ok: true });
@@ -155,7 +156,7 @@ function pick(row, aliases) {
 
 // ---- Colleges ---------------------------------------------------------------
 
-router.get('/colleges', h(async (req, res) => {
+router.get(['/colleges', '/api/colleges'], h(async (req, res) => {
   res.json(await store.listColleges());
 }));
 

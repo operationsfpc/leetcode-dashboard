@@ -46,6 +46,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use('/api', router);
+app.use(router);
 
 // Student-facing SPA (gated by college access code, separate from the admin UI).
 app.get(['/student', '/student/'], (req, res) => {
