@@ -43,21 +43,29 @@ function studentWhere(collegeId, f = {}) {
 }
 
 export async function initStore() {
+  if (pool) return;
   if (!config.supabase.connectionString) {
     throw new Error(
       'DB_DRIVER=supabase but SUPABASE_DB_URL (Postgres connection string) is not set.'
     );
   }
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const defaultMax = isServerless ? 2 : 5;
+  const poolMax = Number(process.env.DB_POOL_MAX) || defaultMax;
+
   pool = new pg.Pool({
     connectionString: config.supabase.connectionString,
     ssl: { rejectUnauthorized: false }, // Supabase requires SSL
-    max: Number(process.env.DB_POOL_MAX) || 15, // concurrent connections; raise for big cohorts
-    idleTimeoutMillis: 30000,
+    max: poolMax,
+    idleTimeoutMillis: isServerless ? 5000 : 30000,
     connectionTimeoutMillis: 10000,
   });
+
+  pool.on('error', (err) => {
+    console.warn('[pg pool warning]:', err.message);
+  });
+
   await q('SELECT 1');
-  // Ensure schema exists (idempotent).
-  await q(fs.readFileSync(SCHEMA_PATH, 'utf8'));
   console.log('[db] driver: supabase (postgres) with lc_* tables');
 }
 
