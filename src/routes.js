@@ -72,7 +72,7 @@ function isPublicReq(req) {
   if (!p.startsWith('/')) p = '/' + p;
   const m = req.method;
   if (m === 'OPTIONS') return true;
-  if (p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta' || p.includes('admin/login') || p.includes('admin/status') || p.includes('meta')) return true;
+  if (p === '/' || p === '/api' || p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta' || p.includes('admin/login') || p.includes('admin/status') || p.includes('meta')) return true;
   if (m === 'GET' && (p === '/template' || p === '/practice-template')) return true; // blank downloads, no data
   if (m === 'GET' && (p === '/colleges' || p.endsWith('/colleges'))) return true;    // student login dropdown
   if (m === 'GET' && /\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
@@ -84,6 +84,7 @@ function isPublicReq(req) {
 }
 
 // ---- Public Auth & Meta endpoints (Always open) -----------------------------
+router.get(['/', '/api'], (req, res) => res.json({ ok: true, status: 'healthy', version: '2026-10-05-v4' }));
 router.get(['/admin/status', '/api/admin/status'], (req, res) => res.json({ authRequired: !!config.adminPassword }));
 
 // Which database is actually live (so the admin can confirm Supabase vs local SQLite).
