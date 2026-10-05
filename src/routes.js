@@ -84,7 +84,7 @@ function isPublicReq(req) {
 }
 
 // ---- Public Auth & Meta endpoints (Always open) -----------------------------
-router.get(['/', '/api'], (req, res) => res.json({ ok: true, status: 'healthy', version: '2026-10-05-v4' }));
+router.get(['/', '/api'], (req, res) => res.json({ ok: true, status: 'healthy', version: '2026-10-05-v5' }));
 router.get(['/admin/status', '/api/admin/status'], (req, res) => res.json({ authRequired: !!config.adminPassword }));
 
 // Which database is actually live (so the admin can confirm Supabase vs local SQLite).
