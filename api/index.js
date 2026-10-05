@@ -49,6 +49,13 @@ function resolveRequestUrl(req) {
 }
 
 export default async function handler(req, res) {
+  if (req.url?.includes('debug') || req.headers['x-debug']) {
+    return res.json({
+      url: req.url,
+      headers: req.headers,
+      query: req.query,
+    });
+  }
   try {
     await initApp();
   } catch (e) {
