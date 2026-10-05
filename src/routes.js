@@ -65,12 +65,14 @@ function tokenValid(token) {
 // This keeps videos visible even if the show_video column is missing/unset.
 const videoShown = (col) => !(col && (col.show_video === 0 || col.show_video === false));
 
-// Endpoints that stay open regardless of admin auth (student + shared-link + auth itself).
+// Endpoints that stay open regardless of admin auth (student + shared-link + auth itself + static files).
 function isPublicReq(req) {
-  let p = (req.path || '').replace(/^\/api/, '');
+  const raw = req.path || req.url || '';
+  let p = raw.split('?')[0].replace(/^\/api/, '');
   if (!p.startsWith('/')) p = '/' + p;
   const m = req.method;
   if (m === 'OPTIONS') return true;
+  if (p === '/' || p === '/index.html' || /\.(html|js|css|svg|ico|png|jpg|json|map)$/i.test(p)) return true;
   if (p === '/admin/login' || p === '/admin/status' || p === '/admin/logout' || p === '/meta') return true;
   if (m === 'GET' && (p === '/template' || p === '/practice-template')) return true; // blank downloads, no data
   if (m === 'GET' && p === '/colleges') return true;                       // student login dropdown
