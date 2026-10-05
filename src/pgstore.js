@@ -12,7 +12,24 @@ import { config } from './config.js';
 import { SUPABASE_SCHEMA_SQL } from './pgschema.js';
 
 let pool;
-const q = (text, params) => pool.query(text, params);
+export function getPool() {
+  if (!pool) {
+    if (!config.supabase.connectionString) {
+      throw new Error(
+        'DB_DRIVER=supabase but SUPABASE_DB_URL (Postgres connection string) is not set.'
+      );
+    }
+    pool = new pg.Pool({
+      connectionString: config.supabase.connectionString,
+      ssl: { rejectUnauthorized: false }, // Supabase requires SSL
+      max: Number(process.env.DB_POOL_MAX) || 15, // concurrent connections; raise for big cohorts
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+  }
+  return pool;
+}
+const q = (text, params) => getPool().query(text, params);
 
 // Timestamps are returned as 'YYYY-MM-DD HH24:MI:SS' text so the frontend's
 // date helpers behave the same as on the SQLite path.
@@ -41,18 +58,7 @@ function studentWhere(collegeId, f = {}) {
 }
 
 export async function initStore() {
-  if (!config.supabase.connectionString) {
-    throw new Error(
-      'DB_DRIVER=supabase but SUPABASE_DB_URL (Postgres connection string) is not set.'
-    );
-  }
-  pool = new pg.Pool({
-    connectionString: config.supabase.connectionString,
-    ssl: { rejectUnauthorized: false }, // Supabase requires SSL
-    max: Number(process.env.DB_POOL_MAX) || 15, // concurrent connections; raise for big cohorts
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  });
+  getPool();
   await q('SELECT 1');
   // Ensure schema exists (idempotent).
   try {
