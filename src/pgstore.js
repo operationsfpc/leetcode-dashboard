@@ -57,7 +57,13 @@ export async function initStore() {
   });
   await q('SELECT 1');
   // Ensure schema exists (idempotent).
-  await q(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+  try {
+    if (fs.existsSync(SCHEMA_PATH)) {
+      await q(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('[db] Schema file note:', e.message);
+  }
   console.log('[db] driver: supabase (postgres) with lc_* tables');
 }
 
