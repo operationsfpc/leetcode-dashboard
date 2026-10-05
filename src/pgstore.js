@@ -9,9 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { config } from './config.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = path.join(__dirname, '..', 'db', 'schema.supabase.sql');
+import { SUPABASE_SCHEMA_SQL } from './pgschema.js';
 
 let pool;
 const q = (text, params) => pool.query(text, params);
@@ -58,11 +56,9 @@ export async function initStore() {
   await q('SELECT 1');
   // Ensure schema exists (idempotent).
   try {
-    if (fs.existsSync(SCHEMA_PATH)) {
-      await q(fs.readFileSync(SCHEMA_PATH, 'utf8'));
-    }
+    await q(SUPABASE_SCHEMA_SQL);
   } catch (e) {
-    console.warn('[db] Schema file note:', e.message);
+    console.warn('[db] Schema initialization note:', e.message);
   }
   console.log('[db] driver: supabase (postgres) with lc_* tables');
 }
