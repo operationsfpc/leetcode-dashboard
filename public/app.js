@@ -80,6 +80,11 @@ function csetRow(c) {
       <span class="cset-saved hint" style="color:var(--green);opacity:0">saved ✓</span>
     </div></td></tr>`;
 }
+function smartCode(name) {
+  const clean = (name || 'LC').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'LC';
+  return `${clean}-${new Date().getFullYear()}`;
+}
+
 async function loadCollegesTab() {
   $('#studentLink').textContent = location.origin + '/student';
   $('#studentLink').href = '/student';
@@ -90,6 +95,7 @@ async function loadCollegesTab() {
     return;
   }
   tbody.innerHTML = colleges.map((c) => {
+    const suggested = smartCode(c.name);
     const codePreview = c.access_code
       ? `<div class="code-box">
           <code class="code-badge">${esc(c.access_code)}</code>
@@ -116,12 +122,18 @@ async function loadCollegesTab() {
         <td>${codePreview}</td>
         <td>
           <div class="code-box">
-            <input class="search code-input" data-id="${c.id}" placeholder="${c.access_code ? 'new code…' : 'set code…'}" />
+            <input class="search code-input" data-id="${c.id}" placeholder="${c.access_code ? 'new code…' : esc(suggested)}" />
+            <button class="btn btn-sm btn-ghost gen-code-btn" data-id="${c.id}" data-suggest="${esc(suggested)}" title="Fill with suggested code: ${esc(suggested)}">⚡ Gen</button>
             <button class="btn btn-sm btn-primary set-code" data-id="${c.id}">Save</button>
           </div>
         </td>
         <td>${linkHtml}</td>
-        <td><button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">🗑 Delete</button></td>
+        <td>
+          <div class="row" style="margin:0;gap:4px;flex-wrap:nowrap">
+            <button class="btn btn-sm btn-ghost export-college-btn" data-id="${c.id}" data-name="${esc(c.name)}" title="Export student roster to Excel">⬇ Export</button>
+            <button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">🗑 Delete</button>
+          </div>
+        </td>
       </tr>${csetRow(c)}`;
   }).join('');
 
@@ -158,6 +170,38 @@ async function loadCollegesTab() {
     const old = b.textContent;
     b.textContent = 'Copied ✓';
     setTimeout(() => { b.textContent = old; }, 1800);
+  }));
+
+  // Auto-fill suggested code
+  tbody.querySelectorAll('.gen-code-btn').forEach((b) => b.addEventListener('click', () => {
+    const inp = tbody.querySelector(`.code-input[data-id="${b.dataset.id}"]`);
+    if (inp) {
+      inp.value = b.dataset.suggest || '';
+      inp.focus();
+    }
+  }));
+
+  // Export single college student roster to Excel
+  tbody.querySelectorAll('.export-college-btn').forEach((b) => b.addEventListener('click', async () => {
+    const cid = b.dataset.id;
+    const name = b.dataset.name || 'college';
+    const orig = b.textContent;
+    b.textContent = '⏳…';
+    b.disabled = true;
+    try {
+      const res = await fetch(`/api/colleges/${cid}/export`, {
+        headers: adminToken() ? { 'x-admin-token': adminToken() } : {},
+      });
+      if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const filename = (cd.match(/filename="([^"]+)"/) || [])[1] || `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_students.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+    } catch (e) { alert('Export failed: ' + e.message); }
+    b.textContent = orig;
+    b.disabled = false;
   }));
 
   // Copy link buttons
@@ -218,6 +262,61 @@ async function loadCollegesTab() {
     } catch (e) { alert(e.message); }
   }));
 }
+
+// Bulk generate links for all colleges missing one
+$('#bulkGenLinksBtn')?.addEventListener('click', async () => {
+  if (!confirm('Generate read-only share links for all colleges that do not have one yet?')) return;
+  const btn = $('#bulkGenLinksBtn');
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Generating…';
+  btn.disabled = true;
+  try {
+    const r = await api('/colleges/bulk-generate-links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    alert(`Generated view links for ${r.generated} college(s). Total: ${r.total}.`);
+    loadCollegesTab();
+  } catch (e) { alert('Failed: ' + e.message); }
+  btn.textContent = orig;
+  btn.disabled = false;
+});
+
+// Bulk generate access codes for all colleges missing one
+$('#bulkGenCodesBtn')?.addEventListener('click', async () => {
+  if (!confirm('Auto-generate student access codes for all colleges missing one? (e.g. PREFIX-2026)')) return;
+  const btn = $('#bulkGenCodesBtn');
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Generating…';
+  btn.disabled = true;
+  try {
+    const r = await api('/colleges/bulk-generate-codes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    alert(`Generated access codes for ${r.generated} college(s). Total: ${r.total}.`);
+    loadCollegesTab();
+    loadColleges();
+  } catch (e) { alert('Failed: ' + e.message); }
+  btn.textContent = orig;
+  btn.disabled = false;
+});
+
+// Export all colleges summary and links to Excel
+$('#exportAllCollegesBtn')?.addEventListener('click', async () => {
+  const btn = $('#exportAllCollegesBtn');
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Exporting…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/colleges-export', {
+      headers: adminToken() ? { 'x-admin-token': adminToken() } : {},
+    });
+    if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const filename = (cd.match(/filename="([^"]+)"/) || [])[1] || `colleges_summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (e) { alert('Export failed: ' + e.message); }
+  btn.textContent = orig;
+  btn.disabled = false;
+});
 
 // Master on/off for auto-sync / auto-refresh across ALL colleges.
 async function applyBulkMode(body, label) {

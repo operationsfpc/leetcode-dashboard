@@ -201,6 +201,66 @@ router.post('/colleges/:id/view-link', h(async (req, res) => {
   res.json({ token, path: `/view/${token}` });
 }));
 
+// Admin: bulk generate read-only links for colleges
+router.post('/colleges/bulk-generate-links', h(async (req, res) => {
+  const colleges = await store.listColleges();
+  let generated = 0;
+  for (const c of colleges) {
+    if (!c.view_token || req.body?.force) {
+      await store.ensureViewToken(c.id, !!req.body?.force);
+      generated++;
+    }
+  }
+  res.json({ ok: true, generated, total: colleges.length });
+}));
+
+// Admin: bulk generate access codes for colleges without one
+router.post('/colleges/bulk-generate-codes', h(async (req, res) => {
+  const colleges = await store.listColleges();
+  let generated = 0;
+  const currentYear = new Date().getFullYear();
+  for (const c of colleges) {
+    if (!c.access_code || req.body?.force) {
+      const prefix = (c.name || 'LC').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'LC';
+      const code = `${prefix}-${currentYear}`;
+      await store.setAccessCode(c.id, code);
+      generated++;
+    }
+  }
+  res.json({ ok: true, generated, total: colleges.length });
+}));
+
+// Admin: export all colleges credentials and summary to Excel
+router.get(['/colleges-export', '/api/colleges-export'], h(async (req, res) => {
+  const colleges = await store.listColleges();
+  const host = `${req.protocol}://${req.get('host')}`;
+  const header = ['College ID', 'College Name', 'Total Students', 'Access Code', 'Read-Only View Link', 'Student Login Page', 'Auto-Sync Mode', 'Auto-Refresh Mode', 'Created At'];
+  const aoa = [header];
+  colleges.forEach((c) => {
+    const viewUrl = c.view_token ? `${host}/view/${c.view_token}` : '';
+    const studentUrl = `${host}/student`;
+    aoa.push([
+      c.id,
+      c.name,
+      c.student_count,
+      c.access_code || '',
+      viewUrl,
+      studentUrl,
+      c.sync_mode || 'on',
+      c.refresh_mode || 'on',
+      c.created_at || '',
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(wb, ws, 'Colleges');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const filename = `colleges_summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+}));
+
 // Public read-only dashboard for ONE college, resolved by share token.
 // Mirrors the admin dashboard: filters, pagination, per-student progress.
 router.get('/view/:token', h(async (req, res) => {
