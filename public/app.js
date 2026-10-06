@@ -64,22 +64,9 @@ function modeSelect(cls, val) {
   return `<select class="filter-sel ${cls}">
     <option value="on"${v === 'on' ? ' selected' : ''}>On</option>
     <option value="off"${v === 'off' ? ' selected' : ''}>Off</option>
-    <option value="scheduled"${v === 'scheduled' ? ' selected' : ''}>Scheduled</option>
   </select>`;
 }
-// Per-college auto-sync + auto-refresh controls (rendered as a row beneath each college).
-function csetRow(c) {
-  const sMode = c.sync_mode || 'on', rMode = c.refresh_mode || 'on';
-  const win = (cls, from, to, show) => `<span class="${cls} ar-sched" style="display:${show ? 'inline-flex' : 'none'}">
-      <input type="time" class="${cls}-from ar-time" value="${from || ''}" /> <span class="hint">–</span>
-      <input type="time" class="${cls}-to ar-time" value="${to || ''}" /></span>`;
-  return `<tr class="cset-row" data-id="${c.id}"><td colspan="6">
-    <div class="cset">
-      <span class="cset-grp"><span class="hint">🛰 Auto-sync</span> ${modeSelect('cset-sync-mode', sMode)} ${win('cset-sync', c.sync_from, c.sync_to, sMode === 'scheduled')}</span>
-      <span class="cset-grp"><span class="hint">🔄 Auto-refresh</span> ${modeSelect('cset-ref-mode', rMode)} ${win('cset-ref', c.refresh_from, c.refresh_to, rMode === 'scheduled')}</span>
-      <span class="cset-saved hint" style="color:var(--green);opacity:0">saved ✓</span>
-    </div></td></tr>`;
-}
+
 function smartCode(name) {
   const clean = (name || 'LC').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'LC';
   return `${clean}-${new Date().getFullYear()}`;
@@ -99,67 +86,67 @@ async function loadCollegesTab() {
     const codePreview = c.access_code
       ? `<div class="code-box">
           <code class="code-badge">${esc(c.access_code)}</code>
-          <button class="btn btn-sm btn-ghost copy-code-btn" data-code="${esc(c.access_code)}" title="Copy access code">📋 Copy</button>
+          <button class="btn btn-sm btn-ghost copy-code-btn" data-code="${esc(c.access_code)}" title="Copy access code">📋</button>
         </div>`
-      : `<span class="cross" style="font-size:12px">None</span>`;
+      : `<span class="muted-tag">None</span>`;
 
     const viewUrl = c.view_token ? `${location.origin}/view/${encodeURIComponent(c.view_token)}` : '';
     const linkHtml = c.view_token
       ? `<div class="link-box">
-          <input class="search link-input" readonly value="${viewUrl}" title="${viewUrl}" onclick="this.select()" />
-          <button class="btn btn-sm btn-ghost copy-link-btn" data-url="${viewUrl}" title="Copy read-only link">📋 Copy</button>
-          <a href="/view/${encodeURIComponent(c.view_token)}" target="_blank" class="btn btn-sm btn-ghost" title="Open read-only view in new tab">↗ Open</a>
+          <input class="link-input" readonly value="${viewUrl}" title="${viewUrl}" onclick="this.select()" />
+          <button class="btn btn-sm btn-ghost copy-link-btn" data-url="${viewUrl}" title="Copy read-only link">📋</button>
+          <a href="/view/${encodeURIComponent(c.view_token)}" target="_blank" class="btn btn-sm btn-ghost" title="Open read-only view in new tab">↗</a>
           <button class="btn btn-sm btn-ghost regen-link" data-id="${c.id}" title="Regenerate link token (invalidates previous link)">↻</button>
         </div>`
-      : `<div class="link-box">
-          <button class="btn btn-sm btn-ghost gen-link" data-id="${c.id}">⚡ Generate link</button>
-        </div>`;
+      : `<button class="btn btn-sm btn-ghost gen-link" data-id="${c.id}">⚡ Generate link</button>`;
+
+    const sMode = c.sync_mode || 'on', rMode = c.refresh_mode || 'on';
 
     return `
-      <tr>
-        <td><b class="college-name">${esc(c.name)}</b></td>
-        <td><span class="pill medium">${c.student_count} student${c.student_count === 1 ? '' : 's'}</span></td>
+      <tr data-id="${c.id}">
+        <td>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span class="college-name">${esc(c.name)}</span>
+            <span class="pill medium" style="width:fit-content;font-size:11px">${c.student_count} student${c.student_count === 1 ? '' : 's'}</span>
+          </div>
+        </td>
         <td>${codePreview}</td>
         <td>
           <div class="code-box">
             <input class="search code-input" data-id="${c.id}" placeholder="${c.access_code ? 'new code…' : esc(suggested)}" />
-            <button class="btn btn-sm btn-ghost gen-code-btn" data-id="${c.id}" data-suggest="${esc(suggested)}" title="Fill with suggested code: ${esc(suggested)}">⚡ Gen</button>
+            <button class="btn btn-sm btn-ghost gen-code-btn" data-id="${c.id}" data-suggest="${esc(suggested)}" title="Fill with suggested code: ${esc(suggested)}">⚡</button>
             <button class="btn btn-sm btn-primary set-code" data-id="${c.id}">Save</button>
           </div>
         </td>
         <td>${linkHtml}</td>
         <td>
-          <div class="row" style="margin:0;gap:4px;flex-wrap:nowrap">
-            <button class="btn btn-sm btn-ghost export-college-btn" data-id="${c.id}" data-name="${esc(c.name)}" title="Export student roster to Excel">⬇ Export</button>
-            <button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">🗑 Delete</button>
+          <div class="auto-box" data-id="${c.id}">
+            <div class="auto-row"><span class="hint" style="font-size:11px">🛰 Sync:</span> ${modeSelect('cset-sync-mode', sMode)}</div>
+            <div class="auto-row"><span class="hint" style="font-size:11px">🔄 Refresh:</span> ${modeSelect('cset-ref-mode', rMode)}</div>
           </div>
         </td>
-      </tr>${csetRow(c)}`;
+        <td>
+          <div class="row" style="margin:0;gap:4px;flex-wrap:nowrap">
+            <button class="btn btn-sm btn-ghost export-college-btn" data-id="${c.id}" data-name="${esc(c.name)}" title="Export student roster to Excel">⬇ Export</button>
+            <button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">🗑</button>
+          </div>
+        </td>
+      </tr>`;
   }).join('');
 
   // Per-college auto-sync / auto-refresh settings — save on any change.
-  tbody.querySelectorAll('.cset-row').forEach((row) => {
-    const id = row.dataset.id;
+  tbody.querySelectorAll('.auto-box').forEach((box) => {
+    const id = box.dataset.id;
     const save = async () => {
-      const syncMode = row.querySelector('.cset-sync-mode').value;
-      const refMode = row.querySelector('.cset-ref-mode').value;
-      row.querySelector('.cset-sync').style.display = syncMode === 'scheduled' ? 'inline-flex' : 'none';
-      row.querySelector('.cset-ref').style.display = refMode === 'scheduled' ? 'inline-flex' : 'none';
-      const body = {
-        sync_mode: syncMode,
-        sync_from: row.querySelector('.cset-sync-from').value,
-        sync_to: row.querySelector('.cset-sync-to').value,
-        refresh_mode: refMode,
-        refresh_from: row.querySelector('.cset-ref-from').value,
-        refresh_to: row.querySelector('.cset-ref-to').value,
-      };
+      const syncMode = box.querySelector('.cset-sync-mode').value;
+      const refMode = box.querySelector('.cset-ref-mode').value;
+      const body = { sync_mode: syncMode, refresh_mode: refMode };
       try {
         await api(`/colleges/${id}/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (state.collegesById && state.collegesById[id]) Object.assign(state.collegesById[id], body);
-        const s = row.querySelector('.cset-saved'); if (s) { s.style.opacity = '1'; setTimeout(() => { s.style.opacity = '0'; }, 1500); }
       } catch (e) { alert('Could not save settings: ' + e.message); }
     };
-    row.querySelectorAll('select, input[type=time]').forEach((el) => el.addEventListener('change', save));
+    box.querySelectorAll('select').forEach((el) => el.addEventListener('change', save));
   });
 
   // Copy code buttons
