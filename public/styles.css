@@ -426,8 +426,8 @@ textarea, .search, .field input {
 }
 
 /* College Table styling */
-#collegeTable { width: 100%; }
-#collegeTable th, #collegeTable td { padding: 10px 12px; vertical-align: middle; }
+#collegeTable { width: 100%; border-collapse: collapse; }
+#collegeTable th, #collegeTable td { padding: 10px 12px; vertical-align: middle; white-space: nowrap; }
 #collegeTable .college-name { font-weight: 700; font-size: 14px; color: var(--text); }
 #collegeTable .code-badge {
   background: var(--panel-2); border: 1px solid var(--border);
@@ -438,13 +438,13 @@ textarea, .search, .field input {
   display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 }
 #collegeTable .link-input {
-  width: 190px; padding: 5px 8px; font-size: 12px; background: var(--panel-2);
+  width: 200px; padding: 5px 8px; font-size: 12px; background: var(--panel-2);
 }
 #collegeTable .code-box {
   display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 }
 #collegeTable .code-input {
-  width: 120px; padding: 5px 8px; font-size: 12px;
+  width: 110px; padding: 5px 8px; font-size: 12px;
 }
 
 
