@@ -803,6 +803,38 @@ textarea, .search, .field input {
   background: var(--panel-2);
 }
 
+.edit-student-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+.edit-student-btn:hover {
+  color: var(--accent);
+  background: var(--panel-2);
+  border-color: var(--accent);
+}
+.edit-student-btn svg {
+  width: 13px;
+  height: 13px;
+}
+.edit-student-from-drawer {
+  color: var(--muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+.edit-student-from-drawer:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+
 
 
 

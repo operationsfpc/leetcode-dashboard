@@ -354,6 +354,56 @@ export const getStudentByEmail = async (collegeId, email) =>
   db.prepare('SELECT * FROM students WHERE college_id=? AND LOWER(email)=LOWER(?)').get(collegeId, String(email).trim());
 export const deleteStudent = async (id) => db.prepare('DELETE FROM students WHERE id = ?').run(id);
 
+export async function updateStudent(id, fields = {}) {
+  const current = await getStudent(id);
+  if (!current) throw new Error('Student not found');
+
+  const name = fields.name !== undefined ? fields.name : current.name;
+  const username = fields.username !== undefined ? fields.username : current.username;
+  const profile_url = fields.profile_url !== undefined ? fields.profile_url : current.profile_url;
+  const register_number = fields.register_number !== undefined ? fields.register_number : current.register_number;
+  const email = fields.email !== undefined ? fields.email : current.email;
+  const department = fields.department !== undefined ? fields.department : current.department;
+  const section = fields.section !== undefined ? fields.section : current.section;
+  const year = fields.year !== undefined ? fields.year : current.year;
+  const campus = fields.campus !== undefined ? fields.campus : current.campus;
+  const usernameChanged = !!fields.usernameChanged;
+
+  if (usernameChanged) {
+    db.prepare(`
+      UPDATE students SET
+        name = ?,
+        username = ?,
+        profile_url = ?,
+        register_number = ?,
+        email = ?,
+        department = ?,
+        section = ?,
+        year = ?,
+        campus = ?,
+        sync_status = 'pending',
+        sync_error = NULL
+      WHERE id = ?
+    `).run(name, username, profile_url, register_number, email, department, section, year, campus, id);
+  } else {
+    db.prepare(`
+      UPDATE students SET
+        name = ?,
+        username = ?,
+        profile_url = ?,
+        register_number = ?,
+        email = ?,
+        department = ?,
+        section = ?,
+        year = ?,
+        campus = ?
+      WHERE id = ?
+    `).run(name, username, profile_url, register_number, email, department, section, year, campus, id);
+  }
+
+  return getStudent(id);
+}
+
 export async function saveStudentStats(id, stats) {
   if (!stats.found) {
     db.prepare(

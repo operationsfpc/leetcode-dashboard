@@ -787,6 +787,66 @@ router.delete('/students/:id', h(async (req, res) => {
   res.json({ ok: true });
 }));
 
+const handleUpdateStudent = async (req, res) => {
+  const studentId = Number(req.params.id);
+  const existing = await store.getStudent(studentId);
+  if (!existing) return res.status(404).json({ error: 'Student not found.' });
+
+  const name = (req.body.name !== undefined ? req.body.name : existing.name).trim();
+  if (!name) return res.status(400).json({ error: 'Student name is required.' });
+
+  let username = existing.username;
+  let profile_url = existing.profile_url;
+  let usernameChanged = false;
+
+  const profileInput = (req.body.url || req.body.username || req.body.profile || '').trim();
+  if (profileInput) {
+    const parsed = parseUsername(profileInput);
+    if (!parsed) return res.status(400).json({ error: 'Enter a valid LeetCode profile URL or username.' });
+    if (parsed.toLowerCase() !== existing.username.toLowerCase()) {
+      const conflict = await store.getStudentByUsername(existing.college_id, parsed);
+      if (conflict && conflict.id !== studentId) {
+        return res.status(400).json({ error: `A student with username "${parsed}" already exists in this college.` });
+      }
+      username = parsed;
+      profile_url = profileInput.includes('leetcode.com') ? profileInput : `https://leetcode.com/u/${parsed}/`;
+      usernameChanged = true;
+    }
+  }
+
+  const clean = (k) => {
+    if (req.body[k] === undefined) return existing[k];
+    const v = String(req.body[k] || '').trim();
+    return v || null;
+  };
+
+  const updated = await store.updateStudent(studentId, {
+    name,
+    username,
+    profile_url,
+    register_number: clean('register_number'),
+    email: clean('email'),
+    department: clean('department'),
+    section: clean('section'),
+    year: clean('year'),
+    campus: clean('campus'),
+    usernameChanged,
+  });
+
+  if (usernameChanged) {
+    try {
+      await runSyncStudent(studentId);
+    } catch (e) {
+      console.warn(`[updateStudent] Sync after username change failed: ${e.message}`);
+    }
+  }
+
+  res.json({ ok: true, student: omitEmail(updated || (await store.getStudent(studentId))) });
+};
+
+router.patch('/students/:id', h(handleUpdateStudent));
+router.put('/students/:id', h(handleUpdateStudent));
+
 router.post('/students/:id/sync', h(async (req, res) => {
   const r = await runSyncStudent(Number(req.params.id));
   res.json(r);

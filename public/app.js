@@ -724,6 +724,7 @@ function renderStudents(students) {
   const tbody = $('#studentTable').querySelector('tbody');
   // Skip the DOM rebuild when nothing changed (avoids flicker on the 2s refresh).
   const sig = JSON.stringify(rows.map((s) => [s.id, s.classRank, s.name, s.username, s.section, s.department,
+    s.register_number, s.email, s.year, s.campus,
     s.ranking, s.baseline_ranking, s.solved_easy, s.solved_medium, s.solved_hard, s.solved_total,
     s.baseline_easy, s.baseline_medium, s.baseline_hard, s.baseline_total, s.practiceCompleted, s.practiceTotal,
     s.sync_status, s.sync_error, s.last_synced_at, s.at_risk]));
@@ -753,13 +754,24 @@ function renderStudents(students) {
       <td class="tot-td"><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
       <td>${practiceCell(s)}</td>
       <td><span class="dot ${s.sync_status}"></span>${fmtAgo(s.last_synced_at)}${s.sync_status === 'error' ? ` <span class="cross" title="${esc(s.sync_error || 'sync failed')}">⚠</span>` : ''}</td>
-      <td><button class="btn btn-sm btn-ghost sync-one" data-id="${s.id}">⟳</button></td>
+      <td>
+        <div class="row" style="margin:0;gap:4px;justify-content:flex-end;flex-wrap:nowrap">
+          <button class="btn btn-sm btn-ghost edit-student-btn" data-id="${s.id}" title="Edit student data">${ic.edit}</button>
+          <button class="btn btn-sm btn-ghost sync-one" data-id="${s.id}" title="Sync stats">⟳</button>
+        </div>
+      </td>
     </tr>`).join('');
 
   tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.sync-one') || e.target.closest('.row-sel')) return;
+      if (e.target.closest('.sync-one') || e.target.closest('.row-sel') || e.target.closest('.edit-student-btn')) return;
       openStudent(tr.dataset.id);
+    });
+  });
+  tbody.querySelectorAll('.edit-student-btn').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditStudentModal(b.dataset.id);
     });
   });
   tbody.querySelectorAll('.sync-one').forEach((b) => {
@@ -1072,9 +1084,16 @@ async function openStudent(id) {
   const s = d.student;
   const growth = d.monthlySolvedGrowth || [];
   $('#drawerContent').innerHTML = `
-    <h2 style="margin-top:0">${esc(s.name)}</h2>
-    <p class="hint"><a href="${esc(s.profile_url || '#')}" target="_blank">@${esc(s.username)}</a>
-      ${s.found ? '' : '· <span class="cross">profile not found / private</span>'}</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+      <div>
+        <h2 style="margin:0 0 4px">${esc(s.name)}</h2>
+        <p class="hint" style="margin:0"><a href="${esc(s.profile_url || '#')}" target="_blank">@${esc(s.username)}</a>
+          ${s.found ? '' : '· <span class="cross">profile not found / private</span>'}</p>
+      </div>
+      <button class="btn btn-sm btn-ghost edit-student-from-drawer" data-id="${s.id}" title="Edit student details" style="display:inline-flex;align-items:center;gap:6px">
+        ${ic.edit} Edit
+      </button>
+    </div>
     ${(s.register_number || s.department || s.section || s.campus || s.year) ? `<p class="hint" style="line-height:1.7">
       ${s.register_number ? `Reg: <b>${esc(s.register_number)}</b> · ` : ''}${s.section ? `Batch: <b>${esc(s.section)}</b> · ` : ''}${s.department ? `${esc(s.department)} · ` : ''}${s.campus ? `${esc(s.campus)}` : ''}${s.year ? ` · ${esc(s.year)}` : ''}</p>` : ''}
     <div class="kv">
@@ -1096,6 +1115,11 @@ async function openStudent(id) {
     <div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px">
       <button class="btn btn-sm btn-danger del-student" data-id="${s.id}" data-name="${esc(s.name)}">Delete this student</button>
     </div>`;
+
+  const ed = $('#drawerContent').querySelector('.edit-student-from-drawer');
+  if (ed) ed.addEventListener('click', () => {
+    openEditStudentModal(ed.dataset.id);
+  });
 
   renderStudentPracticeSection($('#stuPracticeContainer'), d.practice || [], {
     isAdmin: true,
@@ -1150,6 +1174,115 @@ function openDrawer() { $('#drawer').classList.add('open'); $('#drawerBackdrop')
 function closeDrawer() { $('#drawer').classList.remove('open'); $('#drawerBackdrop').classList.remove('show'); }
 $('#drawerClose').addEventListener('click', closeDrawer);
 $('#drawerBackdrop').addEventListener('click', closeDrawer);
+
+// ---- Edit Student Modal ----------------------------------------------------
+let activeEditingStudent = null;
+
+async function openEditStudentModal(id) {
+  setMsg('#editStudentMsg', '', '');
+  const saveBtn = $('#editStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Changes';
+  }
+
+  let student = (state.students || []).find((s) => String(s.id) === String(id));
+
+  if (!student || !student.username) {
+    try {
+      const res = await api(`/students/${id}`);
+      student = res.student;
+    } catch (e) {
+      alert('Could not load student: ' + e.message);
+      return;
+    }
+  }
+
+  activeEditingStudent = student;
+  $('#editStudentId').value = student.id;
+  $('#editStudentName').value = student.name || '';
+  $('#editStudentUrl').value = student.profile_url || student.username || '';
+  $('#editStudentReg').value = student.register_number || '';
+  $('#editStudentEmail').value = student.email || '';
+  $('#editStudentDept').value = student.department || '';
+  $('#editStudentSection').value = student.section || '';
+  $('#editStudentYear').value = student.year || '';
+  $('#editStudentCampus').value = student.campus || '';
+
+  $('#editStudentModalTitle').textContent = `Edit Student · ${student.name || ''}`;
+  $('#editStudentModalBackdrop')?.classList.add('open');
+  setTimeout(() => $('#editStudentName')?.focus(), 50);
+}
+
+function closeEditStudentModal() {
+  $('#editStudentModalBackdrop')?.classList.remove('open');
+  activeEditingStudent = null;
+  setMsg('#editStudentMsg', '', '');
+}
+
+$('#editStudentModalCloseBtn')?.addEventListener('click', closeEditStudentModal);
+$('#editStudentCancelBtn')?.addEventListener('click', closeEditStudentModal);
+$('#editStudentModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'editStudentModalBackdrop') closeEditStudentModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#editStudentModalBackdrop')?.classList.contains('open')) {
+    closeEditStudentModal();
+  }
+});
+
+$('#editStudentForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeEditingStudent) return;
+  const id = $('#editStudentId').value;
+  const name = $('#editStudentName').value.trim();
+  const url = $('#editStudentUrl').value.trim();
+
+  if (!name) return setMsg('#editStudentMsg', 'Student name is required.', 'err');
+  if (!url) return setMsg('#editStudentMsg', 'LeetCode profile URL or username is required.', 'err');
+
+  const body = {
+    name,
+    url,
+    register_number: $('#editStudentReg').value.trim(),
+    email: $('#editStudentEmail').value.trim(),
+    department: $('#editStudentDept').value.trim(),
+    section: $('#editStudentSection').value.trim(),
+    year: $('#editStudentYear').value.trim(),
+    campus: $('#editStudentCampus').value.trim(),
+  };
+
+  const saveBtn = $('#editStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+  }
+  setMsg('#editStudentMsg', 'Saving changes…', '');
+
+  try {
+    await api(`/students/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    closeEditStudentModal();
+    state.studentsSig = null; // force table repaint
+    await loadDashboard();
+
+    // If drawer is open and viewing this student, refresh drawer
+    if ($('#drawer')?.classList.contains('open') && activeEditingStudent && String(activeEditingStudent.id) === String(id)) {
+      openStudent(id);
+    }
+  } catch (err) {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Changes';
+    }
+    setMsg('#editStudentMsg', err.message || 'Failed to update student.', 'err');
+  }
+});
 
 // ---- Practice tab -----------------------------------------------------------
 // The Practice tab has its own college selector (state.practiceCollegeId),

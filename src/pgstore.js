@@ -314,6 +314,58 @@ export async function deleteStudent(id) {
   await q('DELETE FROM lc_students WHERE id=$1', [id]);
 }
 
+export async function updateStudent(id, fields = {}) {
+  const current = await getStudent(id);
+  if (!current) throw new Error('Student not found');
+
+  const name = fields.name !== undefined ? fields.name : current.name;
+  const username = fields.username !== undefined ? fields.username : current.username;
+  const profile_url = fields.profile_url !== undefined ? fields.profile_url : current.profile_url;
+  const register_number = fields.register_number !== undefined ? fields.register_number : current.register_number;
+  const email = fields.email !== undefined ? fields.email : current.email;
+  const department = fields.department !== undefined ? fields.department : current.department;
+  const section = fields.section !== undefined ? fields.section : current.section;
+  const year = fields.year !== undefined ? fields.year : current.year;
+  const campus = fields.campus !== undefined ? fields.campus : current.campus;
+  const usernameChanged = !!fields.usernameChanged;
+
+  if (usernameChanged) {
+    await q(
+      `UPDATE lc_students SET
+        name = $1,
+        username = $2,
+        profile_url = $3,
+        register_number = $4,
+        email = $5,
+        department = $6,
+        section = $7,
+        year = $8,
+        campus = $9,
+        sync_status = 'pending',
+        sync_error = NULL
+      WHERE id = $10`,
+      [name, username, profile_url, register_number, email, department, section, year, campus, id]
+    );
+  } else {
+    await q(
+      `UPDATE lc_students SET
+        name = $1,
+        username = $2,
+        profile_url = $3,
+        register_number = $4,
+        email = $5,
+        department = $6,
+        section = $7,
+        year = $8,
+        campus = $9
+      WHERE id = $10`,
+      [name, username, profile_url, register_number, email, department, section, year, campus, id]
+    );
+  }
+
+  return getStudent(id);
+}
+
 export async function saveStudentStats(id, stats) {
   if (!stats.found) {
     await q(
