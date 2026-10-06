@@ -58,14 +58,11 @@ document.querySelectorAll('.tab').forEach((t) => {
   });
 });
 
-// ---- Colleges tab -----------------------------------------------------------
-function modeSelect(cls, val) {
-  const v = val || 'on';
-  return `<select class="filter-sel ${cls}">
-    <option value="on"${v === 'on' ? ' selected' : ''}>On</option>
-    <option value="off"${v === 'off' ? ' selected' : ''}>Off</option>
-  </select>`;
+function smartCode(name) {
+  const clean = (name || 'LC').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'LC';
+  return `${clean}-${new Date().getFullYear()}`;
 }
+
 
 const ic = {
   key: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>`,
