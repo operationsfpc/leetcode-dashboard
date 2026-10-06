@@ -425,57 +425,382 @@ textarea, .search, .field input {
   font-size: 11px; font-weight: 600;
 }
 
-/* College Table styling */
-#collegeTable { width: 100%; border-collapse: collapse; }
+/* ==========================================================================
+   Shadcn UI Data Table System
+   ========================================================================== */
+
+/* Card & Table container */
+.shad-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  margin-top: 16px;
+}
+
+.shad-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--panel);
+}
+
+.shad-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.shad-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Shadcn Search Input */
+.shad-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 220px;
+}
+.shad-search-wrap svg {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.shad-search-wrap input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 30px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.shad-search-wrap input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 161, 22, 0.2);
+}
+
+/* Shadcn Buttons */
+.shad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.shad-btn svg { flex-shrink: 0; }
+
+.shad-btn-primary {
+  background: var(--accent);
+  color: #1a1300;
+  font-weight: 600;
+}
+.shad-btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.shad-btn-outline {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.shad-btn-outline:hover {
+  background: var(--panel-2);
+  border-color: var(--muted);
+}
+
+.shad-btn-outline-sm {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.shad-btn-outline-sm:hover {
+  background: var(--panel-2);
+  border-color: var(--muted);
+}
+
+.shad-btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+.shad-btn-ghost:hover {
+  background: var(--panel-2);
+}
+
+.shad-btn-ghost-sm {
+  background: transparent;
+  color: var(--text);
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.shad-btn-ghost-sm:hover {
+  background: var(--panel-2);
+}
+
+.shad-btn-icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.shad-btn-icon:hover {
+  background: var(--panel-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Shadcn Select */
+.shad-select {
+  height: 32px;
+  padding: 0 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.shad-select-sm {
+  height: 24px;
+  padding: 0 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+.shad-select:focus, .shad-select-sm:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Shadcn Badges */
+.shad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.shad-badge-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 161, 22, 0.08);
+  border: 1px solid rgba(255, 161, 22, 0.28);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.shad-badge-code:hover {
+  background: rgba(255, 161, 22, 0.16);
+  border-color: rgba(255, 161, 22, 0.45);
+}
+.shad-badge-code code {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+.shad-badge-code .copy-icon {
+  opacity: 0.7;
+}
+
+/* Shadcn Table */
+.shad-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#collegeTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
 #collegeTable thead th {
-  background: var(--panel-2); color: var(--muted);
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
-  font-weight: 700; padding: 10px 14px; border-bottom: 1px solid var(--border);
-  white-space: nowrap; text-align: left;
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 #collegeTable tbody tr {
   border-bottom: 1px solid var(--border);
-  transition: background .15s ease;
+  transition: background-color .15s ease;
 }
-#collegeTable tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+#collegeTable tbody tr:last-child {
+  border-bottom: none;
+}
+#collegeTable tbody tr:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
 #collegeTable tbody td {
-  padding: 12px 14px; vertical-align: middle; white-space: nowrap;
+  padding: 13px 18px;
+  vertical-align: middle;
+  font-size: 13px;
+  white-space: nowrap;
 }
-#collegeTable .college-name {
-  font-weight: 700; font-size: 14px; color: var(--text); display: block;
+
+/* Action Dropdown Menu (Shadcn Popover) */
+.shad-dropdown-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: shadScaleIn .12s cubic-bezier(0.16, 1, 0.3, 1);
 }
-#collegeTable .code-badge {
-  background: rgba(255, 179, 0, 0.1); border: 1px solid rgba(255, 179, 0, 0.3);
-  padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 12px;
-  letter-spacing: 0.5px; font-family: monospace; color: var(--accent);
+@keyframes shadScaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
-#collegeTable .muted-tag {
-  color: var(--muted); font-size: 12px; font-style: italic;
+.shad-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background .12s, color .12s;
 }
-#collegeTable .link-box {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: var(--panel-2); border: 1px solid var(--border);
-  border-radius: 6px; padding: 2px 4px;
+.shad-dropdown-item svg {
+  flex-shrink: 0;
+  color: var(--muted);
 }
-#collegeTable .link-input {
-  width: 175px; padding: 4px 6px; font-size: 11px; border: none;
-  background: transparent; color: var(--text);
-  font-family: monospace;
+.shad-dropdown-item:hover {
+  background: var(--panel-2);
 }
-#collegeTable .code-box {
-  display: inline-flex; align-items: center; gap: 4px;
+.shad-dropdown-item.destructive {
+  color: #ff4d4f;
 }
-#collegeTable .code-input {
-  width: 100px; padding: 5px 8px; font-size: 12px;
+.shad-dropdown-item.destructive svg {
+  color: #ff4d4f;
 }
-#collegeTable .auto-box {
-  display: flex; flex-direction: column; gap: 4px;
+.shad-dropdown-item.destructive:hover {
+  background: rgba(255, 77, 79, 0.12);
 }
-#collegeTable .auto-row {
-  display: flex; align-items: center; gap: 6px;
+.shad-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 0;
 }
-#collegeTable .auto-row select {
-  padding: 2px 6px; font-size: 11px; height: 24px;
+
+/* Shadcn Modal Dialog */
+.shad-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.shad-dialog-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.shad-dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 440px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  transform: scale(0.95);
+  transition: transform .2s ease;
+}
+.shad-dialog-backdrop.open .shad-dialog {
+  transform: scale(1);
+}
+.shad-dialog-header {
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.shad-dialog-header h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.shad-dialog-header p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.shad-dialog-body {
+  padding: 20px;
+}
+.shad-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
 }
 
 

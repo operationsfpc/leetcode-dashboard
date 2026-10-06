@@ -224,32 +224,79 @@
         <button id="addCollegeBtn" class="btn btn-primary">Add college</button>
         <div id="addCollegeMsg" class="msg"></div>
       </div>
-      <div class="panel">
-        <div class="panel-head" style="flex-wrap:wrap;gap:10px;justify-content:space-between">
-          <div class="row" style="margin:0;gap:12px;align-items:center;flex-wrap:wrap">
-            <h2>Colleges</h2>
-            <div class="row" style="margin:0;gap:6px">
-              <button id="bulkGenLinksBtn" class="btn btn-sm btn-ghost" title="Generate read-only share links for all colleges that do not have one">⚡ Gen all links</button>
-              <button id="bulkGenCodesBtn" class="btn btn-sm btn-ghost" title="Auto-generate student access codes for all colleges missing one">🔑 Gen all codes</button>
-              <button id="exportAllCollegesBtn" class="btn btn-sm btn-ghost" title="Export all colleges summary and links to Excel">⬇ Export Excel</button>
+
+      <div class="shad-card">
+        <div class="shad-toolbar">
+          <div class="shad-toolbar-left">
+            <div class="shad-search-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="collegeSearchInput" placeholder="Filter colleges..." />
             </div>
+            <button id="bulkGenLinksBtn" class="shad-btn shad-btn-outline" title="Generate read-only share links for all colleges that do not have one">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+              Gen all links
+            </button>
+            <button id="bulkGenCodesBtn" class="shad-btn shad-btn-outline" title="Auto-generate student access codes for all colleges missing one">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+              Gen all codes
+            </button>
+            <button id="exportAllCollegesBtn" class="shad-btn shad-btn-outline" title="Export all colleges summary and links to Excel">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" y2="3"/></svg>
+              Export Excel
+            </button>
           </div>
-          <div class="row" style="margin:0;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="shad-toolbar-right">
             <div class="row" style="margin:0;gap:6px" title="Set on/off for ALL colleges at once (overrides the per-college controls below)">
-              <span class="hint">All colleges →</span>
-              <select id="allSyncMode" class="filter-sel"><option value="">🛰 Auto-sync…</option><option value="on">🛰 Sync: On</option><option value="off">🛰 Sync: Off</option></select>
-              <select id="allRefreshMode" class="filter-sel"><option value="">🔄 Auto-refresh…</option><option value="on">🔄 Refresh: On</option><option value="off">🔄 Refresh: Off</option></select>
+              <span class="hint" style="font-size:12px">All colleges →</span>
+              <select id="allSyncMode" class="shad-select"><option value="">🛰 Auto-sync…</option><option value="on">🛰 Sync: On</option><option value="off">🛰 Sync: Off</option></select>
+              <select id="allRefreshMode" class="shad-select"><option value="">🔄 Auto-refresh…</option><option value="on">🔄 Refresh: On</option><option value="off">🔄 Refresh: Off</option></select>
             </div>
-            <span class="hint" style="margin-left:4px">Student login: <a id="studentLink" href="/student" target="_blank">/student</a></span>
+            <span class="hint" style="margin-left:4px;font-size:12px">Student login: <a id="studentLink" href="/student" target="_blank">/student</a></span>
           </div>
         </div>
-        <div class="table-wrap">
+
+        <div class="shad-table-wrap">
           <table id="collegeTable">
-            <thead><tr><th>College</th><th>Access code</th><th>Set / replace code</th><th>Read-only live view</th><th>Automation</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="width:28%">College</th>
+                <th style="width:22%">Student Access Code</th>
+                <th style="width:22%">Read-Only Live View</th>
+                <th style="width:18%">Automation</th>
+                <th style="width:10%;text-align:right">Actions</th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
-        <p class="hint">Share the student access code with your students to log into the student view. Share the read-only link with anyone who needs a live view of the dashboard.</p>
+        <div class="shad-footer" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)">
+          <span id="collegeTableCount">Showing colleges</span>
+          <span>Share access code with students · Share read-only link for live dashboard</span>
+        </div>
+      </div>
+
+      <!-- Shadcn Dialog for Editing Access Code -->
+      <div id="codeModalBackdrop" class="shad-dialog-backdrop">
+        <div class="shad-dialog">
+          <div class="shad-dialog-header">
+            <h3 id="codeModalTitle">Set Student Access Code</h3>
+            <p id="codeModalSub">Students type this code on the login page to access their dashboard.</p>
+          </div>
+          <div class="shad-dialog-body">
+            <label class="field" style="margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:6px;display:block">Access Code</span>
+              <input id="modalCodeInput" class="search" placeholder="e.g. ALLI-2026" style="width:100%;font-family:monospace;font-weight:600;font-size:14px" />
+            </label>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+              <span class="hint" style="font-size:11px">Recommended: <code id="modalCodeSuggest" style="color:var(--accent)"></code></span>
+              <button id="modalUseSuggestBtn" class="shad-btn shad-btn-ghost-sm" style="font-size:11px">⚡ Use recommended</button>
+            </div>
+          </div>
+          <div class="shad-dialog-footer">
+            <button id="codeModalCancelBtn" class="shad-btn shad-btn-outline">Cancel</button>
+            <button id="codeModalSaveBtn" class="shad-btn shad-btn-primary">Save Changes</button>
+          </div>
+        </div>
       </div>
     </section>
 

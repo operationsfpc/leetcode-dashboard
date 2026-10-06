@@ -67,75 +67,148 @@ function modeSelect(cls, val) {
   </select>`;
 }
 
-function smartCode(name) {
-  const clean = (name || 'LC').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'LC';
-  return `${clean}-${new Date().getFullYear()}`;
-}
+const ic = {
+  key: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>`,
+  copy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
+  external: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
+  sparkles: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
+  more: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`,
+  download: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" y2="3"/></svg>`,
+  rotate: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>`,
+  edit: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`,
+  trash: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`
+};
 
-async function loadCollegesTab() {
-  $('#studentLink').textContent = location.origin + '/student';
-  $('#studentLink').href = '/student';
-  const colleges = await api('/colleges');
+let cachedCollegesList = [];
+let activeRowDropdown = null;
+
+function closeRowDropdown() {
+  if (activeRowDropdown) {
+    activeRowDropdown.remove();
+    activeRowDropdown = null;
+  }
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.row-menu-btn') && !e.target.closest('.shad-dropdown-menu')) {
+    closeRowDropdown();
+  }
+});
+window.addEventListener('resize', closeRowDropdown);
+window.addEventListener('scroll', closeRowDropdown, true);
+
+// Modal dialog state for editing access code
+let activeEditingCollege = null;
+function openCodeModal(college) {
+  activeEditingCollege = college;
+  const suggested = smartCode(college.name);
+  $('#codeModalTitle').textContent = `Set Access Code · ${college.name}`;
+  $('#codeModalSub').textContent = `Students choose their name and type this access code on the login page.`;
+  $('#modalCodeInput').value = college.access_code || suggested;
+  $('#modalCodeSuggest').textContent = suggested;
+  $('#codeModalBackdrop').classList.add('open');
+  setTimeout(() => $('#modalCodeInput').focus(), 50);
+}
+function closeCodeModal() {
+  $('#codeModalBackdrop').classList.remove('open');
+  activeEditingCollege = null;
+}
+$('#codeModalCancelBtn')?.addEventListener('click', closeCodeModal);
+$('#codeModalBackdrop')?.addEventListener('click', (e) => { if (e.target.id === 'codeModalBackdrop') closeCodeModal(); });
+$('#modalUseSuggestBtn')?.addEventListener('click', () => {
+  if (activeEditingCollege) {
+    $('#modalCodeInput').value = smartCode(activeEditingCollege.name);
+  }
+});
+$('#codeModalSaveBtn')?.addEventListener('click', async () => {
+  if (!activeEditingCollege) return;
+  const code = $('#modalCodeInput').value.trim();
+  if (!code) return alert('Please enter an access code.');
+  try {
+    await api(`/colleges/${activeEditingCollege.id}/access-code`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+    });
+    closeCodeModal();
+    loadCollegesTab();
+    loadColleges();
+  } catch (e) { alert(e.message); }
+});
+
+function renderCollegesTableRows(colleges) {
   const tbody = $('#collegeTable').querySelector('tbody');
+  const countEl = $('#collegeTableCount');
+  if (countEl) countEl.textContent = `Showing ${colleges.length} of ${cachedCollegesList.length} colleges`;
+
   if (!colleges.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No colleges yet. Add one above.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty" style="padding:28px 18px;text-align:center;color:var(--muted)">No matching colleges found.</td></tr>';
     return;
   }
+
   tbody.innerHTML = colleges.map((c) => {
     const suggested = smartCode(c.name);
-    const codePreview = c.access_code
-      ? `<div class="code-box">
-          <code class="code-badge">${esc(c.access_code)}</code>
-          <button class="btn btn-sm btn-ghost copy-code-btn" data-code="${esc(c.access_code)}" title="Copy access code">📋</button>
-        </div>`
-      : `<span class="muted-tag">None</span>`;
-
     const viewUrl = c.view_token ? `${location.origin}/view/${encodeURIComponent(c.view_token)}` : '';
-    const linkHtml = c.view_token
-      ? `<div class="link-box">
-          <input class="link-input" readonly value="${viewUrl}" title="${viewUrl}" onclick="this.select()" />
-          <button class="btn btn-sm btn-ghost copy-link-btn" data-url="${viewUrl}" title="Copy read-only link">📋</button>
-          <a href="/view/${encodeURIComponent(c.view_token)}" target="_blank" class="btn btn-sm btn-ghost" title="Open read-only view in new tab">↗</a>
-          <button class="btn btn-sm btn-ghost regen-link" data-id="${c.id}" title="Regenerate link token (invalidates previous link)">↻</button>
-        </div>`
-      : `<button class="btn btn-sm btn-ghost gen-link" data-id="${c.id}">⚡ Generate link</button>`;
-
     const sMode = c.sync_mode || 'on', rMode = c.refresh_mode || 'on';
+
+    const codeHtml = c.access_code
+      ? `<button class="shad-badge-code copy-code-btn" data-code="${esc(c.access_code)}" title="Click to copy access code">
+          ${ic.key}
+          <code>${esc(c.access_code)}</code>
+          <span class="copy-icon" title="Copy">${ic.copy}</span>
+        </button>`
+      : `<button class="shad-btn shad-btn-ghost-sm open-code-modal-btn" data-id="${c.id}" title="Set student access code">
+          ${ic.sparkles} <span class="muted-tag" style="margin:0">Set code</span>
+        </button>`;
+
+    const linkHtml = c.view_token
+      ? `<div class="row" style="margin:0;gap:6px;align-items:center">
+          <a href="/view/${encodeURIComponent(c.view_token)}" target="_blank" class="shad-btn shad-btn-outline-sm" title="Open read-only view in new tab">
+            ${ic.external} View
+          </a>
+          <button class="shad-btn shad-btn-ghost-sm copy-link-btn" data-url="${viewUrl}" title="Copy shareable link">
+            ${ic.copy} Copy
+          </button>
+        </div>`
+      : `<button class="shad-btn shad-btn-outline-sm gen-link" data-id="${c.id}">
+          ${ic.sparkles} Gen Link
+        </button>`;
 
     return `
       <tr data-id="${c.id}">
         <td>
           <div style="display:flex;flex-direction:column;gap:3px">
-            <span class="college-name">${esc(c.name)}</span>
-            <span class="pill medium" style="width:fit-content;font-size:11px">${c.student_count} student${c.student_count === 1 ? '' : 's'}</span>
+            <span style="font-weight:600;font-size:14px;color:var(--text)">${esc(c.name)}</span>
+            <span class="shad-badge" style="width:fit-content">${c.student_count} students</span>
           </div>
         </td>
-        <td>${codePreview}</td>
-        <td>
-          <div class="code-box">
-            <input class="search code-input" data-id="${c.id}" placeholder="${c.access_code ? 'new code…' : esc(suggested)}" />
-            <button class="btn btn-sm btn-ghost gen-code-btn" data-id="${c.id}" data-suggest="${esc(suggested)}" title="Fill with suggested code: ${esc(suggested)}">⚡</button>
-            <button class="btn btn-sm btn-primary set-code" data-id="${c.id}">Save</button>
-          </div>
-        </td>
+        <td>${codeHtml}</td>
         <td>${linkHtml}</td>
         <td>
-          <div class="auto-box" data-id="${c.id}">
-            <div class="auto-row"><span class="hint" style="font-size:11px">🛰 Sync:</span> ${modeSelect('cset-sync-mode', sMode)}</div>
-            <div class="auto-row"><span class="hint" style="font-size:11px">🔄 Refresh:</span> ${modeSelect('cset-ref-mode', rMode)}</div>
+          <div class="row auto-cell" data-id="${c.id}" style="margin:0;gap:8px;align-items:center">
+            <label class="row" style="margin:0;gap:4px;align-items:center;font-size:12px;color:var(--muted)">
+              <span>🛰</span>
+              <select class="shad-select-sm cset-sync-mode">
+                <option value="on"${sMode === 'on' ? ' selected' : ''}>Sync: On</option>
+                <option value="off"${sMode === 'off' ? ' selected' : ''}>Sync: Off</option>
+              </select>
+            </label>
+            <label class="row" style="margin:0;gap:4px;align-items:center;font-size:12px;color:var(--muted)">
+              <span>🔄</span>
+              <select class="shad-select-sm cset-ref-mode">
+                <option value="on"${rMode === 'on' ? ' selected' : ''}>Refresh: On</option>
+                <option value="off"${rMode === 'off' ? ' selected' : ''}>Refresh: Off</option>
+              </select>
+            </label>
           </div>
         </td>
-        <td>
-          <div class="row" style="margin:0;gap:4px;flex-wrap:nowrap">
-            <button class="btn btn-sm btn-ghost export-college-btn" data-id="${c.id}" data-name="${esc(c.name)}" title="Export student roster to Excel">⬇ Export</button>
-            <button class="btn btn-sm btn-danger del-college" data-id="${c.id}" data-name="${esc(c.name)}" data-count="${c.student_count}">🗑</button>
-          </div>
+        <td style="text-align:right">
+          <button class="shad-btn-icon row-menu-btn" data-id="${c.id}" title="Actions">
+            ${ic.more}
+          </button>
         </td>
       </tr>`;
   }).join('');
 
   // Per-college auto-sync / auto-refresh settings — save on any change.
-  tbody.querySelectorAll('.auto-box').forEach((box) => {
+  tbody.querySelectorAll('.auto-cell').forEach((box) => {
     const id = box.dataset.id;
     const save = async () => {
       const syncMode = box.querySelector('.cset-sync-mode').value;
@@ -154,41 +227,18 @@ async function loadCollegesTab() {
     const code = b.dataset.code;
     if (!code) return;
     navigator.clipboard?.writeText(code);
-    const old = b.textContent;
-    b.textContent = 'Copied ✓';
-    setTimeout(() => { b.textContent = old; }, 1800);
-  }));
-
-  // Auto-fill suggested code
-  tbody.querySelectorAll('.gen-code-btn').forEach((b) => b.addEventListener('click', () => {
-    const inp = tbody.querySelector(`.code-input[data-id="${b.dataset.id}"]`);
-    if (inp) {
-      inp.value = b.dataset.suggest || '';
-      inp.focus();
+    const iconSpan = b.querySelector('.copy-icon');
+    if (iconSpan) {
+      const orig = iconSpan.innerHTML;
+      iconSpan.textContent = '✓';
+      setTimeout(() => { iconSpan.innerHTML = orig; }, 1600);
     }
   }));
 
-  // Export single college student roster to Excel
-  tbody.querySelectorAll('.export-college-btn').forEach((b) => b.addEventListener('click', async () => {
-    const cid = b.dataset.id;
-    const name = b.dataset.name || 'college';
-    const orig = b.textContent;
-    b.textContent = '⏳…';
-    b.disabled = true;
-    try {
-      const res = await fetch(`/api/colleges/${cid}/export`, {
-        headers: adminToken() ? { 'x-admin-token': adminToken() } : {},
-      });
-      if (!res.ok) throw new Error('Export failed (' + res.status + ')');
-      const blob = await res.blob();
-      const cd = res.headers.get('Content-Disposition') || '';
-      const filename = (cd.match(/filename="([^"]+)"/) || [])[1] || `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_students.xlsx`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-      a.remove(); URL.revokeObjectURL(url);
-    } catch (e) { alert('Export failed: ' + e.message); }
-    b.textContent = orig;
-    b.disabled = false;
+  // Open modal from Set Code button
+  tbody.querySelectorAll('.open-code-modal-btn').forEach((b) => b.addEventListener('click', () => {
+    const col = cachedCollegesList.find((x) => String(x.id) === String(b.dataset.id));
+    if (col) openCodeModal(col);
   }));
 
   // Copy link buttons
@@ -197,21 +247,8 @@ async function loadCollegesTab() {
     if (!url) return;
     navigator.clipboard?.writeText(url);
     const old = b.textContent;
-    b.textContent = 'Copied ✓';
-    setTimeout(() => { b.textContent = old; }, 1800);
-  }));
-
-  // Delete college
-  tbody.querySelectorAll('.del-college').forEach((b) => b.addEventListener('click', async () => {
-    const name = b.dataset.name, n = b.dataset.count;
-    if (!confirm(`Delete "${name}" and ALL of its ${n} student(s), practice problems, and progress?\n\nThis cannot be undone.`)) return;
-    try {
-      await api(`/colleges/${b.dataset.id}`, { method: 'DELETE' });
-      if (state.collegeId == b.dataset.id) state.collegeId = null;
-      if (state.practiceCollegeId == b.dataset.id) state.practiceCollegeId = null;
-      loadCollegesTab();
-      loadColleges();
-    } catch (e) { alert(e.message); }
+    b.textContent = '✓ Copied';
+    setTimeout(() => { b.textContent = old; }, 1600);
   }));
 
   // Generate link
@@ -224,31 +261,101 @@ async function loadCollegesTab() {
     } catch (e) { alert(e.message); }
   }));
 
-  // Regenerate link
-  tbody.querySelectorAll('.regen-link').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('Generate a new link? The current one will stop working.')) return;
-    try {
-      await api(`/colleges/${b.dataset.id}/view-link`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true }),
-      });
-      loadCollegesTab();
-    } catch (e) { alert(e.message); }
-  }));
+  // Row Action Menu (••• Dropdown)
+  tbody.querySelectorAll('.row-menu-btn').forEach((btn) => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    const col = cachedCollegesList.find((x) => String(x.id) === String(id));
+    if (!col) return;
 
-  // Save / set access code
-  tbody.querySelectorAll('.set-code').forEach((b) => b.addEventListener('click', async () => {
-    const inp = tbody.querySelector(`.code-input[data-id="${b.dataset.id}"]`);
-    const code = inp ? inp.value.trim() : '';
-    if (!code) return alert('Enter a code to set.');
-    try {
-      await api(`/colleges/${b.dataset.id}/access-code`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
-      });
-      loadCollegesTab();
-      loadColleges();
-    } catch (e) { alert(e.message); }
+    if (activeRowDropdown && activeRowDropdown._targetBtn === btn) {
+      closeRowDropdown();
+      return;
+    }
+    closeRowDropdown();
+
+    const menu = document.createElement('div');
+    menu.className = 'shad-dropdown-menu';
+    menu._targetBtn = btn;
+    menu.innerHTML = `
+      <button class="shad-dropdown-item menu-edit-code">${ic.edit} Edit Access Code</button>
+      <button class="shad-dropdown-item menu-regen-link">${ic.rotate} Regenerate Live Link</button>
+      <button class="shad-dropdown-item menu-export-roster">${ic.download} Export Student Roster</button>
+      <div class="shad-dropdown-divider"></div>
+      <button class="shad-dropdown-item destructive menu-del-college">${ic.trash} Delete College</button>
+    `;
+
+    document.body.appendChild(menu);
+    const r = btn.getBoundingClientRect();
+    menu.style.top = (r.bottom + 4) + 'px';
+    menu.style.right = (window.innerWidth - r.right) + 'px';
+    activeRowDropdown = menu;
+
+    menu.querySelector('.menu-edit-code').addEventListener('click', () => {
+      closeRowDropdown();
+      openCodeModal(col);
+    });
+
+    menu.querySelector('.menu-regen-link').addEventListener('click', async () => {
+      closeRowDropdown();
+      if (!confirm(`Generate a new live link for "${col.name}"? The previous link will stop working.`)) return;
+      try {
+        await api(`/colleges/${col.id}/view-link`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true }),
+        });
+        loadCollegesTab();
+      } catch (err) { alert(err.message); }
+    });
+
+    menu.querySelector('.menu-export-roster').addEventListener('click', async () => {
+      closeRowDropdown();
+      try {
+        const res = await fetch(`/api/colleges/${col.id}/export`, {
+          headers: adminToken() ? { 'x-admin-token': adminToken() } : {},
+        });
+        if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const filename = (cd.match(/filename="([^"]+)"/) || [])[1] || `${col.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_students.xlsx`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+        a.remove(); URL.revokeObjectURL(url);
+      } catch (err) { alert('Export failed: ' + err.message); }
+    });
+
+    menu.querySelector('.menu-del-college').addEventListener('click', async () => {
+      closeRowDropdown();
+      if (!confirm(`Delete "${col.name}" and ALL of its ${col.student_count} student(s), practice problems, and progress?\n\nThis cannot be undone.`)) return;
+      try {
+        await api(`/colleges/${col.id}`, { method: 'DELETE' });
+        if (state.collegeId == col.id) state.collegeId = null;
+        if (state.practiceCollegeId == col.id) state.practiceCollegeId = null;
+        loadCollegesTab();
+        loadColleges();
+      } catch (err) { alert(err.message); }
+    });
   }));
 }
+
+async function loadCollegesTab() {
+  $('#studentLink').textContent = location.origin + '/student';
+  $('#studentLink').href = '/student';
+  cachedCollegesList = await api('/colleges');
+  const q = ($('#collegeSearchInput')?.value || '').trim().toLowerCase();
+  const filtered = q
+    ? cachedCollegesList.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.access_code || '').toLowerCase().includes(q))
+    : cachedCollegesList;
+  renderCollegesTableRows(filtered);
+}
+
+// Real-time table search
+$('#collegeSearchInput')?.addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  const filtered = q
+    ? cachedCollegesList.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.access_code || '').toLowerCase().includes(q))
+    : cachedCollegesList;
+  renderCollegesTableRows(filtered);
+});
 
 // Bulk generate links for all colleges missing one
 $('#bulkGenLinksBtn')?.addEventListener('click', async () => {
