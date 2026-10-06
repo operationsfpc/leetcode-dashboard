@@ -32,7 +32,7 @@ function recolorChart(c) {
 lcChartTheme();
 window.__onTheme = () => { lcChartTheme(); recolorChart(chart); recolorChart(drawerChart); };
 
-const api = (path) => fetch('/api' + path).then(async (r) => {
+const api = (path, opts = {}) => fetch('/api' + path, opts).then(async (r) => {
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
   return d;

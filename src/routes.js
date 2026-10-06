@@ -376,7 +376,7 @@ router.get('/view/:token/practice/:problemId/completion', h(async (req, res) => 
 }));
 
 // Read-only sync for this college alone (scoped to the share token or env college)
-router.post('/view/:token/sync', h(async (req, res) => {
+router.all(['/view/:token/sync', '/api/view/:token/sync'], h(async (req, res) => {
   let c = await store.getCollegeByToken(req.params.token);
   if (!c && process.env.COLLEGE_ID) {
     c = await store.getCollege(Number(process.env.COLLEGE_ID));
@@ -386,7 +386,7 @@ router.post('/view/:token/sync', h(async (req, res) => {
   res.json({ started: true, collegeId: c.id, collegeName: c.name });
 }));
 
-router.get('/view/:token/sync-state', h(async (req, res) => {
+router.get(['/view/:token/sync-state', '/api/view/:token/sync-state'], h(async (req, res) => {
   let c = await store.getCollegeByToken(req.params.token);
   if (!c && process.env.COLLEGE_ID) {
     c = await store.getCollege(Number(process.env.COLLEGE_ID));
