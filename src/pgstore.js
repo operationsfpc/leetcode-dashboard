@@ -22,9 +22,12 @@ export function getPool() {
     pool = new pg.Pool({
       connectionString: config.supabase.connectionString,
       ssl: { rejectUnauthorized: false }, // Supabase requires SSL
-      max: Number(process.env.DB_POOL_MAX) || 15, // concurrent connections; raise for big cohorts
-      idleTimeoutMillis: 30000,
+      max: Number(process.env.DB_POOL_MAX) || 5, // Safe pool size so multiple app instances / background tasks never exceed Supabase session pool limit (15)
+      idleTimeoutMillis: 20000,
       connectionTimeoutMillis: 10000,
+    });
+    pool.on('error', (err) => {
+      console.warn('[pg-pool]', err.message);
     });
   }
   return pool;
@@ -243,9 +246,20 @@ export async function getCollegeMonthly(collegeId, f = {}) {
 }
 
 export async function getFilterOptions(collegeId) {
-  const distinct = async (col) =>
-    (await q(`SELECT DISTINCT ${col} AS v FROM lc_students WHERE college_id=$1 AND ${col} IS NOT NULL AND ${col}<>'' ORDER BY ${col}`, [collegeId])).rows.map((r) => r.v);
-  return { batches: await distinct('section'), departments: await distinct('department'), campuses: await distinct('campus'), years: await distinct('year') };
+  const { rows } = await q(`
+    SELECT
+      ARRAY(SELECT DISTINCT section FROM lc_students WHERE college_id=$1 AND section IS NOT NULL AND section <> '' ORDER BY section) AS batches,
+      ARRAY(SELECT DISTINCT department FROM lc_students WHERE college_id=$1 AND department IS NOT NULL AND department <> '' ORDER BY department) AS departments,
+      ARRAY(SELECT DISTINCT campus FROM lc_students WHERE college_id=$1 AND campus IS NOT NULL AND campus <> '' ORDER BY campus) AS campuses,
+      ARRAY(SELECT DISTINCT year FROM lc_students WHERE college_id=$1 AND year IS NOT NULL AND year <> '' ORDER BY year) AS years
+  `, [collegeId]);
+  const r = rows[0] || {};
+  return {
+    batches: r.batches || [],
+    departments: r.departments || [],
+    campuses: r.campuses || [],
+    years: r.years || [],
+  };
 }
 
 export async function getAllStudents() {
