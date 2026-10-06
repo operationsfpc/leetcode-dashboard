@@ -397,7 +397,7 @@ $('#exportAllCollegesBtn')?.addEventListener('click', async () => {
   btn.textContent = '⏳ Exporting…';
   btn.disabled = true;
   try {
-    const res = await fetch('/api/colleges-export', {
+    const res = await fetch(`/api/colleges-export?origin=${encodeURIComponent(location.origin)}`, {
       headers: adminToken() ? { 'x-admin-token': adminToken() } : {},
     });
     if (!res.ok) throw new Error('Export failed (' + res.status + ')');

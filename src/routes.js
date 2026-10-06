@@ -233,7 +233,25 @@ router.post('/colleges/bulk-generate-codes', h(async (req, res) => {
 // Admin: export all colleges credentials and summary to Excel
 router.get(['/colleges-export', '/api/colleges-export'], h(async (req, res) => {
   const colleges = await store.listColleges();
-  const host = `${req.protocol}://${req.get('host')}`;
+  
+  // Resolve accurate public URL (supporting explicit env, query param, reverse proxy, or origin)
+  let host = '';
+  if (req.query?.origin) {
+    host = String(req.query.origin).replace(/\/+$/, '');
+  } else if (process.env.APP_BASE_URL) {
+    host = process.env.APP_BASE_URL.replace(/\/+$/, '');
+  } else if (process.env.PUBLIC_URL) {
+    host = process.env.PUBLIC_URL.replace(/\/+$/, '');
+  } else if (process.env.VERCEL_URL) {
+    host = `https://${process.env.VERCEL_URL.replace(/\/+$/, '')}`;
+  } else if (req.headers.origin) {
+    host = String(req.headers.origin).replace(/\/+$/, '');
+  } else {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const h = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
+    host = `${proto}://${h}`;
+  }
+
   const header = ['College ID', 'College Name', 'Total Students', 'Access Code', 'Read-Only View Link', 'Student Login Page', 'Auto-Sync Mode', 'Auto-Refresh Mode', 'Created At'];
   const aoa = [header];
   colleges.forEach((c) => {
