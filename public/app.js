@@ -888,7 +888,23 @@ function renderPracticeData(d) {
     showProblemCompletion(Number(c.dataset.pid), c.dataset.title)));
 }
 
-// Who completed / didn't complete one specific problem (drawer).
+function filterDrawerStudents(list, { q = '', dept = '', sec = '', campus = '' } = {}) {
+  const query = (q || '').trim().toLowerCase();
+  return (list || []).filter((s) => {
+    if (dept && (s.department || '') !== dept) return false;
+    if (sec && (s.section || '') !== sec) return false;
+    if (campus && (s.campus || '') !== campus) return false;
+    if (query) {
+      const name = (s.name || '').toLowerCase();
+      const user = (s.username || '').toLowerCase();
+      const reg = (s.register_number || '').toLowerCase();
+      if (!name.includes(query) && !user.includes(query) && !reg.includes(query)) return false;
+    }
+    return true;
+  });
+}
+
+// Who completed / didn't complete one specific problem (drawer with search & filters).
 async function showProblemCompletion(problemId, title) {
   const cid = practiceCid(); if (!cid) return;
   $('#drawerContent').innerHTML = '<p class="hint">Loading…</p>';
@@ -896,18 +912,126 @@ async function showProblemCompletion(problemId, title) {
   let d;
   try { d = await api(`/colleges/${cid}/practice/${problemId}/completion`); }
   catch { $('#drawerContent').innerHTML = '<p class="empty">Could not load.</p>'; return; }
-  const table = (arr) => arr.length
-    ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th></tr></thead><tbody>${
-        arr.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
-          <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
-          <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td></tr>`).join('')
-      }</tbody></table>`
-    : '<p class="empty">None.</p>';
-  $('#drawerContent').innerHTML = `<h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
-    <h2 style="color:var(--green);margin-top:14px">✓ Completed (${d.completed.length})</h2>${table(d.completed)}
-    <h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${d.notCompleted.length})</h2>${table(d.notCompleted)}`;
-  $('#drawerContent').querySelectorAll('tr[data-id]').forEach((tr) =>
-    tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+
+  const completedAll = d.completed || [];
+  const notCompletedAll = d.notCompleted || [];
+  const totalAll = completedAll.length + notCompletedAll.length;
+  const allStudents = [...completedAll, ...notCompletedAll];
+
+  const depts = [...new Set(allStudents.map((s) => s.department).filter(Boolean))].sort();
+  const secs = [...new Set(allStudents.map((s) => s.section).filter(Boolean))].sort();
+  const campuses = [...new Set(allStudents.map((s) => s.campus).filter(Boolean))].sort();
+
+  const filterState = { q: '', dept: '', sec: '', campus: '', status: 'all' };
+
+  const deptOpts = depts.length ? `<select id="prob_dept" class="drawer-filter-sel"><option value="">All depts</option>${depts.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+  const secOpts = secs.length ? `<select id="prob_sec" class="drawer-filter-sel"><option value="">All sections</option>${secs.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+  const campusOpts = campuses.length > 1 ? `<select id="prob_campus" class="drawer-filter-sel"><option value="">All campuses</option>${campuses.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+
+  $('#drawerContent').innerHTML = `
+    <h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
+    <div class="drawer-filter-bar">
+      <div class="drawer-filter-row" style="margin-bottom:2px">
+        <div class="drawer-tabs" id="prob_filter_tabs">
+          <button type="button" class="drawer-tab active" data-status="all">All (${totalAll})</button>
+          <button type="button" class="drawer-tab" data-status="completed">✓ Completed (${completedAll.length})</button>
+          <button type="button" class="drawer-tab" data-status="notCompleted">✗ Not completed (${notCompletedAll.length})</button>
+        </div>
+      </div>
+      <div class="drawer-filter-row">
+        <input type="search" id="prob_q" class="drawer-filter-search" placeholder="Search name / username / reg no…" autocomplete="off" />
+        ${deptOpts}
+        ${secOpts}
+        ${campusOpts}
+      </div>
+      <div class="drawer-filter-meta">
+        <span id="prob_filter_count" class="hint"></span>
+        <button type="button" id="prob_filter_clear" class="drawer-clear-btn" style="display:none">Clear filters</button>
+      </div>
+    </div>
+    <div id="prob_tables_container"></div>`;
+
+  function render() {
+    const compFiltered = filterDrawerStudents(completedAll, filterState);
+    const notCompFiltered = filterDrawerStudents(notCompletedAll, filterState);
+    const totalFiltered = compFiltered.length + notCompFiltered.length;
+
+    const isFiltered = Boolean(filterState.q || filterState.dept || filterState.sec || filterState.campus || filterState.status !== 'all');
+
+    const countEl = $('#prob_filter_count');
+    if (countEl) {
+      countEl.textContent = isFiltered
+        ? `Showing ${totalFiltered} of ${totalAll} students`
+        : `${totalAll} total student${totalAll === 1 ? '' : 's'}`;
+    }
+    const clearBtn = $('#prob_filter_clear');
+    if (clearBtn) clearBtn.style.display = isFiltered ? 'inline' : 'none';
+
+    const tabEl = $('#prob_filter_tabs');
+    if (tabEl) {
+      tabEl.querySelectorAll('.drawer-tab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.status === filterState.status);
+      });
+    }
+
+    const table = (arr) => arr.length
+      ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th>${depts.length ? '<th>Dept</th>' : ''}${campuses.length > 1 ? '<th>Campus</th>' : ''}</tr></thead><tbody>${
+          arr.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
+            <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
+            <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td>
+            ${depts.length ? `<td>${esc(s.department || '—')}</td>` : ''}
+            ${campuses.length > 1 ? `<td>${esc(s.campus || '—')}</td>` : ''}</tr>`).join('')
+        }</tbody></table>`
+      : '<p class="empty" style="margin:8px 0 12px">None matching.</p>';
+
+    let tablesHtml = '';
+    if (filterState.status === 'all' || filterState.status === 'completed') {
+      tablesHtml += `<h2 style="color:var(--green);margin-top:14px">✓ Completed (${compFiltered.length}${compFiltered.length !== completedAll.length ? ` / ${completedAll.length}` : ''})</h2>${table(compFiltered)}`;
+    }
+    if (filterState.status === 'all' || filterState.status === 'notCompleted') {
+      tablesHtml += `<h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${notCompFiltered.length}${notCompFiltered.length !== notCompletedAll.length ? ` / ${notCompletedAll.length}` : ''})</h2>${table(notCompFiltered)}`;
+    }
+
+    const container = $('#prob_tables_container');
+    if (container) {
+      container.innerHTML = tablesHtml;
+      container.querySelectorAll('tr[data-id]').forEach((tr) =>
+        tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+    }
+  }
+
+  const qInput = $('#prob_q');
+  if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; render(); });
+  const deptSel = $('#prob_dept');
+  if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; render(); });
+  const secSel = $('#prob_sec');
+  if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; render(); });
+  const campusSel = $('#prob_campus');
+  if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; render(); });
+
+  const tabContainer = $('#prob_filter_tabs');
+  if (tabContainer) {
+    tabContainer.querySelectorAll('.drawer-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        filterState.status = btn.dataset.status;
+        render();
+      });
+    });
+  }
+
+  const clearBtn = $('#prob_filter_clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      filterState.q = ''; filterState.dept = ''; filterState.sec = ''; filterState.campus = ''; filterState.status = 'all';
+      if (qInput) qInput.value = '';
+      if (deptSel) deptSel.value = '';
+      if (secSel) secSel.value = '';
+      if (campusSel) campusSel.value = '';
+      render();
+    });
+  }
+
+  render();
 }
 
 // ---- Completion breakdown (how many students solved how many questions) -----
@@ -969,19 +1093,93 @@ async function showCompleters(count) {
     $('#drawerContent').innerHTML = '<p class="empty">Could not load that list.</p>';
     return;
   }
-  const list = d.students || [];
-  const head = `<h2 style="margin-top:0">${list.length} student${list.length === 1 ? '' : 's'} solved exactly ${count} question${count === 1 ? '' : 's'}</h2>`;
-  const body = list.length
-    ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th><th>Dept</th></tr></thead><tbody>${
-        list.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
-          <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
-          <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td><td>${esc(s.department || '—')}</td>
-        </tr>`).join('')
-      }</tbody></table>`
-    : '<p class="empty">No students in this bucket.</p>';
-  $('#drawerContent').innerHTML = head + body;
-  $('#drawerContent').querySelectorAll('tr[data-id]').forEach((tr) =>
-    tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+  const rawList = d.students || [];
+  const total = rawList.length;
+
+  const depts = [...new Set(rawList.map((s) => s.department).filter(Boolean))].sort();
+  const secs = [...new Set(rawList.map((s) => s.section).filter(Boolean))].sort();
+  const campuses = [...new Set(rawList.map((s) => s.campus).filter(Boolean))].sort();
+
+  const filterState = { q: '', dept: '', sec: '', campus: '' };
+
+  const head = `<h2 style="margin-top:0">${total} student${total === 1 ? '' : 's'} solved exactly ${count} question${count === 1 ? '' : 's'}</h2>`;
+
+  const deptOpts = depts.length ? `<select id="comp_dept" class="drawer-filter-sel"><option value="">All depts</option>${depts.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+  const secOpts = secs.length ? `<select id="comp_sec" class="drawer-filter-sel"><option value="">All sections</option>${secs.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+  const campusOpts = campuses.length > 1 ? `<select id="comp_campus" class="drawer-filter-sel"><option value="">All campuses</option>${campuses.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
+
+  const filterBar = total > 0 ? `
+    <div class="drawer-filter-bar">
+      <div class="drawer-filter-row">
+        <input type="search" id="comp_q" class="drawer-filter-search" placeholder="Search name / username / reg no…" autocomplete="off" />
+        ${deptOpts}
+        ${secOpts}
+        ${campusOpts}
+      </div>
+      <div class="drawer-filter-meta">
+        <span id="comp_filter_count" class="hint"></span>
+        <button type="button" id="comp_filter_clear" class="drawer-clear-btn" style="display:none">Clear filters</button>
+      </div>
+    </div>` : '';
+
+  $('#drawerContent').innerHTML = `${head}${filterBar}<div id="comp_table_container"></div>`;
+
+  function render() {
+    const filtered = filterDrawerStudents(rawList, filterState);
+    const isFiltered = Boolean(filterState.q || filterState.dept || filterState.sec || filterState.campus);
+
+    const countEl = $('#comp_filter_count');
+    if (countEl) {
+      countEl.textContent = isFiltered
+        ? `Showing ${filtered.length} of ${total} students`
+        : `${total} student${total === 1 ? '' : 's'}`;
+    }
+    const clearBtn = $('#comp_filter_clear');
+    if (clearBtn) clearBtn.style.display = isFiltered ? 'inline' : 'none';
+
+    const tableHtml = filtered.length
+      ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th>${depts.length ? '<th>Dept</th>' : ''}${campuses.length > 1 ? '<th>Campus</th>' : ''}</tr></thead><tbody>${
+          filtered.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
+            <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
+            <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td>
+            ${depts.length ? `<td>${esc(s.department || '—')}</td>` : ''}
+            ${campuses.length > 1 ? `<td>${esc(s.campus || '—')}</td>` : ''}
+          </tr>`).join('')
+        }</tbody></table>`
+      : '<p class="empty">No matching students found.</p>';
+
+    const container = $('#comp_table_container');
+    if (container) {
+      container.innerHTML = tableHtml;
+      container.querySelectorAll('tr[data-id]').forEach((tr) =>
+        tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+    }
+  }
+
+  if (total > 0) {
+    const qInput = $('#comp_q');
+    if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; render(); });
+    const deptSel = $('#comp_dept');
+    if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; render(); });
+    const secSel = $('#comp_sec');
+    if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; render(); });
+    const campusSel = $('#comp_campus');
+    if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; render(); });
+
+    const clearBtn = $('#comp_filter_clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        filterState.q = ''; filterState.dept = ''; filterState.sec = ''; filterState.campus = '';
+        if (qInput) qInput.value = '';
+        if (deptSel) deptSel.value = '';
+        if (secSel) secSel.value = '';
+        if (campusSel) campusSel.value = '';
+        render();
+      });
+    }
+  }
+
+  render();
 }
 
 // ---- Reorder domains / topics (drag & drop) --------------------------------

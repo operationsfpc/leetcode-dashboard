@@ -607,7 +607,7 @@ export async function getPracticeDistribution(collegeId) {
 
 // The students who completed exactly `count` assigned problems (on-demand drill-down).
 export async function getProblemCompletion(collegeId, problemId) {
-  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department';
+  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department, s.campus';
   const completed = (await q(
     `SELECT ${cols} FROM lc_students s
      JOIN lc_practice_completions pc ON pc.student_id = s.id AND pc.problem_id = $1
@@ -621,7 +621,7 @@ export async function getProblemCompletion(collegeId, problemId) {
 
 export async function getStudentsByCompletedCount(collegeId, count) {
   const { rows } = await q(
-    `SELECT s.id, s.name, s.username, s.register_number, s.section, s.department, COUNT(pp.id)::int AS cnt
+    `SELECT s.id, s.name, s.username, s.register_number, s.section, s.department, s.campus, COUNT(pp.id)::int AS cnt
      FROM lc_students s
      LEFT JOIN lc_practice_completions pc ON pc.student_id = s.id
      LEFT JOIN lc_practice_problems pp ON pp.id = pc.problem_id AND pp.college_id = s.college_id

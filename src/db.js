@@ -617,7 +617,7 @@ export async function getPracticeDistribution(collegeId) {
 
 // For one problem: which students in the college completed it, and which didn't.
 export async function getProblemCompletion(collegeId, problemId) {
-  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department';
+  const cols = 's.id, s.name, s.username, s.register_number, s.section, s.department, s.campus';
   const completed = db.prepare(
     `SELECT ${cols} FROM students s
      JOIN practice_completions pc ON pc.student_id = s.id AND pc.problem_id = ?
@@ -632,7 +632,7 @@ export async function getProblemCompletion(collegeId, problemId) {
 // The students who completed exactly `count` assigned problems (on-demand drill-down).
 export async function getStudentsByCompletedCount(collegeId, count) {
   return db.prepare(
-    `SELECT s.id, s.name, s.username, s.register_number, s.section, s.department, COUNT(pp.id) AS cnt
+    `SELECT s.id, s.name, s.username, s.register_number, s.section, s.department, s.campus, COUNT(pp.id) AS cnt
      FROM students s
      LEFT JOIN practice_completions pc ON pc.student_id = s.id
      LEFT JOIN practice_problems pp ON pp.id = pc.problem_id AND pp.college_id = s.college_id
