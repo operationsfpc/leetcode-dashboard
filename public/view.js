@@ -531,12 +531,223 @@ async function showProblemCompletion(problemId, title) {
 }
 
 // ---- read-only student drawer ----------------------------------------------
+function renderStudentPracticeSection(containerEl, practiceList, options = {}) {
+  const totalAll = (practiceList || []).length;
+  const solvedAll = (practiceList || []).filter((p) => p.completed).length;
+  const pendingAll = totalAll - solvedAll;
+  const solvedPct = totalAll ? Math.round((solvedAll / totalAll) * 100) : 0;
+
+  const PAGE_SIZE = 10;
+  const filterState = {
+    q: '',
+    diff: '',
+    status: 'all',
+    page: 1,
+  };
+
+  const wrap = document.createElement('div');
+  wrap.className = 'stu-practice-section';
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:22px;margin-bottom:8px">
+      <h2 style="margin:0">Practice problems</h2>
+      <span class="sync-status" style="font-size:12px;font-weight:600">${solvedAll}/${totalAll} solved (${solvedPct}%)</span>
+    </div>
+    ${totalAll > 0 ? `
+    <div class="drawer-filter-bar" style="margin:8px 0 12px">
+      <div class="drawer-filter-row" style="margin-bottom:6px">
+        <div class="drawer-tabs stu-prac-status-tabs">
+          <button type="button" class="drawer-tab active" data-status="all">All (${totalAll})</button>
+          <button type="button" class="drawer-tab" data-status="solved">✓ Solved (${solvedAll})</button>
+          <button type="button" class="drawer-tab" data-status="pending">✗ Pending (${pendingAll})</button>
+        </div>
+        <select class="drawer-filter-sel stu-prac-diff-sel" style="margin-left:auto">
+          <option value="">All difficulties</option>
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div class="drawer-filter-row">
+        <input type="search" class="drawer-filter-search stu-prac-search" placeholder="Search problem title / topic…" autocomplete="off" />
+      </div>
+      <div class="drawer-filter-meta">
+        <span class="stu-prac-count hint"></span>
+        <button type="button" class="stu-prac-clear drawer-clear-btn" style="display:none">Clear filters</button>
+      </div>
+    </div>
+    <div class="stu-prac-table-wrap">
+      <table class="mini-table">
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th style="width:75px">Difficulty</th>
+            <th style="width:85px">Status</th>
+            ${options.isAdmin ? '<th style="width:85px;text-align:right">Action</th>' : ''}
+          </tr>
+        </thead>
+        <tbody class="stu-prac-tbody"></tbody>
+      </table>
+      <div class="drawer-pager stu-prac-pager" style="margin-top:8px">
+        <span class="stu-prac-page-info hint"></span>
+        <button type="button" class="btn btn-sm btn-ghost stu-prac-prev">‹ Prev</button>
+        <button type="button" class="btn btn-sm btn-ghost stu-prac-next">Next ›</button>
+      </div>
+    </div>` : '<p class="empty" style="margin-top:8px">No problems assigned.</p>'}`;
+
+  containerEl.appendChild(wrap);
+  if (totalAll === 0) return;
+
+  function renderRows() {
+    const q = filterState.q.trim().toLowerCase();
+    const diff = filterState.diff.trim().toLowerCase();
+    const status = filterState.status;
+
+    const filtered = (practiceList || []).filter((p) => {
+      if (status === 'solved' && !p.completed) return false;
+      if (status === 'pending' && p.completed) return false;
+      if (diff && (p.difficulty || '').toLowerCase() !== diff) return false;
+      if (q) {
+        const t = (p.title || '').toLowerCase();
+        const s = (p.slug || '').toLowerCase();
+        const tp = (p.topic || '').toLowerCase();
+        const dm = (p.domain || '').toLowerCase();
+        if (!t.includes(q) && !s.includes(q) && !tp.includes(q) && !dm.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const isFiltered = Boolean(q || diff || status !== 'all');
+    const countEl = wrap.querySelector('.stu-prac-count');
+    if (countEl) {
+      countEl.textContent = isFiltered
+        ? `Showing ${filtered.length} of ${totalAll} problems`
+        : `${totalAll} problems`;
+    }
+    const clearBtn = wrap.querySelector('.stu-prac-clear');
+    if (clearBtn) clearBtn.style.display = isFiltered ? 'inline-block' : 'none';
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    filterState.page = Math.min(Math.max(1, filterState.page), totalPages);
+    const start = (filterState.page - 1) * PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+    const tbody = wrap.querySelector('.stu-prac-tbody');
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="${options.isAdmin ? 4 : 3}" class="empty">No matching problems found.</td></tr>`;
+    } else {
+      tbody.innerHTML = pageItems.map((p) => {
+        const diffPill = p.difficulty ? `<span class="pill ${(p.difficulty || '').toLowerCase()}">${esc(p.difficulty)}</span>` : '—';
+        const vidBtn = p.video_url ? ` <button class="vid-link" data-video="${esc(p.video_url)}" title="YouTube video">▶ video</button>` : '';
+        const duePill = p.due_date ? ` <span class="due-pill${p.due_date < new Date().toISOString().slice(0,10) ? ' overdue' : ''}">⏰ ${esc(p.due_date)}</span>` : '';
+        const statusHtml = p.completed ? '<span class="check">✓ solved</span>' : '<span class="cross">pending</span>';
+        const actHtml = options.isAdmin
+          ? `<td style="text-align:right"><button class="btn btn-sm ${p.completed ? 'btn-ghost' : 'btn-primary'} toggle-comp-btn" data-pid="${p.id}" data-done="${p.completed ? 1 : 0}" style="padding:2px 7px;font-size:11px">${p.completed ? 'Unmark' : 'Mark done'}</button></td>`
+          : '';
+        return `
+          <tr>
+            <td>
+              <a href="${esc(p.url)}" target="_blank" rel="noopener" style="font-weight:500">${esc(p.title)}</a>${vidBtn}${duePill}
+              ${p.topic || p.domain ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc([p.domain, p.topic].filter(Boolean).join(' · '))}</div>` : ''}
+            </td>
+            <td>${diffPill}</td>
+            <td>${statusHtml}</td>
+            ${actHtml}
+          </tr>`;
+      }).join('');
+
+      if (options.isAdmin && options.onToggle) {
+        tbody.querySelectorAll('.toggle-comp-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const pid = Number(btn.dataset.pid);
+            const curDone = btn.dataset.done === '1';
+            btn.disabled = true;
+            await options.onToggle(pid, curDone);
+          });
+        });
+      }
+    }
+
+    const pageInfo = wrap.querySelector('.stu-prac-page-info');
+    if (pageInfo) {
+      pageInfo.textContent = filtered.length === 0 ? '0 of 0' : `${start + 1}–${Math.min(start + PAGE_SIZE, filtered.length)} of ${filtered.length}`;
+    }
+    const prevBtn = wrap.querySelector('.stu-prac-prev');
+    const nextBtn = wrap.querySelector('.stu-prac-next');
+    if (prevBtn) prevBtn.disabled = filterState.page <= 1;
+    if (nextBtn) nextBtn.disabled = filterState.page >= totalPages;
+  }
+
+  wrap.querySelectorAll('.stu-prac-status-tabs .drawer-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      wrap.querySelectorAll('.stu-prac-status-tabs .drawer-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterState.status = btn.dataset.status;
+      filterState.page = 1;
+      renderRows();
+    });
+  });
+
+  const diffSel = wrap.querySelector('.stu-prac-diff-sel');
+  if (diffSel) {
+    diffSel.addEventListener('change', (e) => {
+      filterState.diff = e.target.value;
+      filterState.page = 1;
+      renderRows();
+    });
+  }
+
+  const searchInput = wrap.querySelector('.stu-prac-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterState.q = e.target.value;
+      filterState.page = 1;
+      renderRows();
+    });
+  }
+
+  const clearBtn = wrap.querySelector('.stu-prac-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      filterState.q = '';
+      filterState.diff = '';
+      filterState.status = 'all';
+      filterState.page = 1;
+      if (searchInput) searchInput.value = '';
+      if (diffSel) diffSel.value = '';
+      wrap.querySelectorAll('.stu-prac-status-tabs .drawer-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
+      renderRows();
+    });
+  }
+
+  const prevBtn = wrap.querySelector('.stu-prac-prev');
+  if (prevBtn) prevBtn.addEventListener('click', () => { if (filterState.page > 1) { filterState.page--; renderRows(); } });
+  const nextBtn = wrap.querySelector('.stu-prac-next');
+  if (nextBtn) nextBtn.addEventListener('click', () => { filterState.page++; renderRows(); });
+
+  renderRows();
+}
+
 async function openStudent(id) {
+  // Instant visual feedback: open drawer immediately with loading indicator
+  $('#drawerContent').innerHTML = `
+    <div style="padding:32px 16px;text-align:center;color:var(--muted)">
+      <div style="font-size:26px;margin-bottom:10px">⚡</div>
+      <p style="margin:0;font-size:13px">Loading student profile…</p>
+    </div>`;
+  $('#drawer').classList.add('open');
+  $('#drawerBackdrop').classList.add('show');
+
   let d;
-  try { d = await api(`/view/${encodeURIComponent(token)}/student/${id}`); }
-  catch (e) { return; }
+  try {
+    d = await api(`/view/${encodeURIComponent(token)}/student/${id}`);
+  } catch (e) {
+    $('#drawerContent').innerHTML = `
+      <p class="empty" style="padding:24px">${esc(e.message || 'Could not load student profile.')}</p>`;
+    return;
+  }
+
   const s = d.student;
-  const growth = d.monthlySolvedGrowth;
+  const growth = d.monthlySolvedGrowth || [];
   $('#drawerContent').innerHTML = `
     <h2 style="margin-top:0">${esc(s.name)}</h2>
     <p class="hint"><a href="${esc(s.profile_url || '#')}" target="_blank">@${esc(s.username)}</a>
@@ -557,22 +768,19 @@ async function openStudent(id) {
     ${growth.length ? `<h2 style="margin-top:18px">Problems solved per month</h2>
       <table><thead><tr><th>Month</th><th>Easy</th><th>Med</th><th>Hard</th><th>Total</th></tr></thead>
       <tbody>${growth.map((g) => `<tr><td>${g.ym}</td><td>${g.easy}</td><td>${g.medium}</td><td>${g.hard}</td><td><b>${g.total}</b></td></tr>`).join('')}</tbody></table>` : ''}
-    <h2 style="margin-top:18px">Practice problems</h2>
-    <table><thead><tr><th>Problem</th><th>Status</th></tr></thead><tbody>
-      ${d.practice.length ? d.practice.map((p) => `<tr><td><a href="${esc(p.url)}" target="_blank">${esc(p.title)}</a></td>
-        <td>${p.completed ? '<span class="check">✓ solved</span>' : '<span class="cross">pending</span>'}</td></tr>`).join('')
-        : '<tr><td colspan="2" class="empty">No problems assigned.</td></tr>'}
-    </tbody></table>`;
+    <div id="stuPracticeContainer"></div>`;
 
-  $('#drawer').classList.add('open');
-  $('#drawerBackdrop').classList.add('show');
-  const m = d.monthlyActivity;
+  renderStudentPracticeSection($('#stuPracticeContainer'), d.practice || [], { isAdmin: false });
+
+  const m = d.monthlyActivity || [];
   if (drawerChart) drawerChart.destroy();
-  drawerChart = new Chart($('#drawerMonthly'), {
-    type: 'line',
-    data: { labels: m.map((x) => x.ym), datasets: [{ data: m.map((x) => x.submissions), borderColor: '#ffa116', backgroundColor: 'rgba(255,161,22,.15)', fill: true, tension: .3 }] },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
-  });
+  if ($('#drawerMonthly')) {
+    drawerChart = new Chart($('#drawerMonthly'), {
+      type: 'line',
+      data: { labels: m.map((x) => x.ym), datasets: [{ data: m.map((x) => x.submissions), borderColor: '#ffa116', backgroundColor: 'rgba(255,161,22,.15)', fill: true, tension: .3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+    });
+  }
 }
 function progressBlock(s) {
   if (s.baseline_at == null) return '';

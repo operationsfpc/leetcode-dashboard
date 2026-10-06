@@ -420,17 +420,21 @@ router.get('/view/:token/student/:studentId', h(async (req, res) => {
   const s = await store.getStudent(Number(req.params.studentId));
   if (!s || s.college_id !== c.id) return res.status(404).json({ error: 'Student not found.' });
 
-  const completions = await store.getCompletionsForStudent(s.id);
-  const compIds = new Set(completions.map((x) => x.problem_id));
-  const problems = await store.getPracticeProblemsByCollege(s.college_id);
+  const [completions, problems, monthlyActivity, monthlySolvedGrowth] = await Promise.all([
+    store.getCompletionsForStudent(s.id),
+    store.getPracticeProblemsByCollege(s.college_id),
+    store.getMonthlyActivity(s.id),
+    store.getMonthlySolvedGrowth(s.id),
+  ]);
+  const compMap = new Map(completions.map((x) => [x.problem_id, x.completed_at]));
   res.json({
     student: omitEmail(s),
-    monthlyActivity: await store.getMonthlyActivity(s.id),
-    monthlySolvedGrowth: await store.getMonthlySolvedGrowth(s.id),
+    monthlyActivity,
+    monthlySolvedGrowth,
     practice: problems.map((p) => ({
       ...p,
-      completed: compIds.has(p.id),
-      completed_at: completions.find((x) => x.problem_id === p.id)?.completed_at || null,
+      completed: compMap.has(p.id),
+      completed_at: compMap.get(p.id) || null,
     })),
   });
 }));
@@ -759,17 +763,21 @@ router.get('/colleges/:id/monthly', h(async (req, res) => {
 router.get('/students/:id', h(async (req, res) => {
   const s = await store.getStudent(Number(req.params.id));
   if (!s) return res.status(404).json({ error: 'student not found' });
-  const completions = await store.getCompletionsForStudent(s.id);
-  const problems = await store.getPracticeProblemsByCollege(s.college_id);
-  const compIds = new Set(completions.map((c) => c.problem_id));
+  const [completions, problems, monthlyActivity, monthlySolvedGrowth] = await Promise.all([
+    store.getCompletionsForStudent(s.id),
+    store.getPracticeProblemsByCollege(s.college_id),
+    store.getMonthlyActivity(s.id),
+    store.getMonthlySolvedGrowth(s.id),
+  ]);
+  const compMap = new Map(completions.map((x) => [x.problem_id, x.completed_at]));
   res.json({
     student: omitEmail(s),
-    monthlyActivity: await store.getMonthlyActivity(s.id),
-    monthlySolvedGrowth: await store.getMonthlySolvedGrowth(s.id),
+    monthlyActivity,
+    monthlySolvedGrowth,
     practice: problems.map((p) => ({
       ...p,
-      completed: compIds.has(p.id),
-      completed_at: completions.find((c) => c.problem_id === p.id)?.completed_at || null,
+      completed: compMap.has(p.id),
+      completed_at: compMap.get(p.id) || null,
     })),
   });
 }));
