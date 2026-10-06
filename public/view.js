@@ -339,7 +339,54 @@ function filterDrawerStudents(list, { q = '', dept = '', sec = '', campus = '' }
   });
 }
 
-// Who completed / didn't complete one problem (read-only drawer with search & filters).
+const DRAWER_PAGE_SIZE = 10;
+function renderDrawerTablePage({
+  idPrefix,
+  list,
+  page,
+  pageSize = DRAWER_PAGE_SIZE,
+  depts,
+  campuses,
+  emptyMsg = 'None.'
+}) {
+  const total = list.length;
+  if (!total) {
+    return `<p class="empty" style="margin:6px 0 14px">${emptyMsg}</p>`;
+  }
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const curPage = Math.min(Math.max(1, page), pages);
+  const start = (curPage - 1) * pageSize;
+  const pageRows = list.slice(start, start + pageSize);
+
+  const tableHtml = `<table class="mini-table">
+    <thead>
+      <tr>
+        <th>Name</th><th>Username</th><th>Reg no</th><th>Section</th>
+        ${depts && depts.length ? '<th>Dept</th>' : ''}
+        ${campuses && campuses.length > 1 ? '<th>Campus</th>' : ''}
+      </tr>
+    </thead>
+    <tbody>
+      ${pageRows.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
+        <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
+        <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td>
+        ${depts && depts.length ? `<td>${esc(s.department || '—')}</td>` : ''}
+        ${campuses && campuses.length > 1 ? `<td>${esc(s.campus || '—')}</td>` : ''}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  const pagerHtml = pages > 1 ? `
+    <div class="drawer-pager">
+      <button type="button" class="btn btn-sm btn-ghost ${idPrefix}-prev" ${curPage === 1 ? 'disabled' : ''}>‹ Prev</button>
+      <span class="hint">${start + 1}–${Math.min(start + pageSize, total)} of ${total}</span>
+      <button type="button" class="btn btn-sm btn-ghost ${idPrefix}-next" ${curPage === pages ? 'disabled' : ''}>Next ›</button>
+    </div>` : '';
+
+  return tableHtml + pagerHtml;
+}
+
+// Who completed / didn't complete one problem (read-only drawer with search, filters & pagination).
 async function showProblemCompletion(problemId, title) {
   $('#drawerContent').innerHTML = '<p class="hint">Loading…</p>';
   $('#drawer').classList.add('open');
@@ -357,22 +404,14 @@ async function showProblemCompletion(problemId, title) {
   const secs = [...new Set(allStudents.map((s) => s.section).filter(Boolean))].sort();
   const campuses = [...new Set(allStudents.map((s) => s.campus).filter(Boolean))].sort();
 
-  const filterState = { q: '', dept: '', sec: '', campus: '', status: 'all' };
+  const filterState = { q: '', dept: '', sec: '', campus: '', compPage: 1, notCompPage: 1 };
 
   const deptOpts = depts.length ? `<select id="prob_dept" class="drawer-filter-sel"><option value="">All depts</option>${depts.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
   const secOpts = secs.length ? `<select id="prob_sec" class="drawer-filter-sel"><option value="">All sections</option>${secs.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
   const campusOpts = campuses.length > 1 ? `<select id="prob_campus" class="drawer-filter-sel"><option value="">All campuses</option>${campuses.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
 
-  $('#drawerContent').innerHTML = `
-    <h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
+  const filterBar = totalAll > 0 ? `
     <div class="drawer-filter-bar">
-      <div class="drawer-filter-row" style="margin-bottom:2px">
-        <div class="drawer-tabs" id="prob_filter_tabs">
-          <button type="button" class="drawer-tab active" data-status="all">All (${totalAll})</button>
-          <button type="button" class="drawer-tab" data-status="completed">✓ Completed (${completedAll.length})</button>
-          <button type="button" class="drawer-tab" data-status="notCompleted">✗ Not completed (${notCompletedAll.length})</button>
-        </div>
-      </div>
       <div class="drawer-filter-row">
         <input type="search" id="prob_q" class="drawer-filter-search" placeholder="Search name / username / reg no…" autocomplete="off" />
         ${deptOpts}
@@ -383,7 +422,27 @@ async function showProblemCompletion(problemId, title) {
         <span id="prob_filter_count" class="hint"></span>
         <button type="button" id="prob_filter_clear" class="drawer-clear-btn" style="display:none">Clear filters</button>
       </div>
-    </div>
+    </div>` : '';
+
+  const compPct = totalAll ? Math.round((completedAll.length / totalAll) * 100) : 0;
+  const notCompPct = totalAll ? 100 - compPct : 0;
+
+  const statGraphHtml = totalAll > 0 ? `
+    <div class="prob-stat-bar">
+      <div class="prob-stat-track">
+        <div class="prob-stat-fill comp" style="width:${compPct}%" title="Completed: ${completedAll.length} (${compPct}%)"></div>
+        <div class="prob-stat-fill notcomp" style="width:${notCompPct}%" title="Not completed: ${notCompletedAll.length} (${notCompPct}%)"></div>
+      </div>
+      <div class="prob-stat-labels">
+        <span style="color:var(--green)">✓ <b>${completedAll.length}</b> completed (${compPct}%)</span>
+        <span style="color:var(--hard)">✗ <b>${notCompletedAll.length}</b> not completed (${notCompPct}%)</span>
+      </div>
+    </div>` : '';
+
+  $('#drawerContent').innerHTML = `
+    <h2 style="margin-top:0">${esc(title || 'Problem')}</h2>
+    ${statGraphHtml}
+    ${filterBar}
     <div id="prob_tables_container"></div>`;
 
   function render() {
@@ -391,7 +450,7 @@ async function showProblemCompletion(problemId, title) {
     const notCompFiltered = filterDrawerStudents(notCompletedAll, filterState);
     const totalFiltered = compFiltered.length + notCompFiltered.length;
 
-    const isFiltered = Boolean(filterState.q || filterState.dept || filterState.sec || filterState.campus || filterState.status !== 'all');
+    const isFiltered = Boolean(filterState.q || filterState.dept || filterState.sec || filterState.campus);
 
     const countEl = $('#prob_filter_count');
     if (countEl) {
@@ -402,68 +461,70 @@ async function showProblemCompletion(problemId, title) {
     const clearBtn = $('#prob_filter_clear');
     if (clearBtn) clearBtn.style.display = isFiltered ? 'inline' : 'none';
 
-    const tabEl = $('#prob_filter_tabs');
-    if (tabEl) {
-      tabEl.querySelectorAll('.drawer-tab').forEach((t) => {
-        t.classList.toggle('active', t.dataset.status === filterState.status);
-      });
-    }
+    const compHtml = renderDrawerTablePage({
+      idPrefix: 'prob-comp',
+      list: compFiltered,
+      page: filterState.compPage,
+      depts,
+      campuses,
+      emptyMsg: isFiltered ? 'No matching completed students.' : 'None.'
+    });
 
-    const table = (arr) => arr.length
-      ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th>${depts.length ? '<th>Dept</th>' : ''}${campuses.length > 1 ? '<th>Campus</th>' : ''}</tr></thead><tbody>${
-          arr.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
-            <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
-            <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td>
-            ${depts.length ? `<td>${esc(s.department || '—')}</td>` : ''}
-            ${campuses.length > 1 ? `<td>${esc(s.campus || '—')}</td>` : ''}</tr>`).join('')
-        }</tbody></table>`
-      : '<p class="empty" style="margin:8px 0 12px">None matching.</p>';
+    const notCompHtml = renderDrawerTablePage({
+      idPrefix: 'prob-notcomp',
+      list: notCompFiltered,
+      page: filterState.notCompPage,
+      depts,
+      campuses,
+      emptyMsg: isFiltered ? 'No matching not completed students.' : 'None.'
+    });
 
-    let tablesHtml = '';
-    if (filterState.status === 'all' || filterState.status === 'completed') {
-      tablesHtml += `<h2 style="color:var(--green);margin-top:14px">✓ Completed (${compFiltered.length}${compFiltered.length !== completedAll.length ? ` / ${completedAll.length}` : ''})</h2>${table(compFiltered)}`;
-    }
-    if (filterState.status === 'all' || filterState.status === 'notCompleted') {
-      tablesHtml += `<h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${notCompFiltered.length}${notCompFiltered.length !== notCompletedAll.length ? ` / ${notCompletedAll.length}` : ''})</h2>${table(notCompFiltered)}`;
-    }
+    const tablesHtml = `
+      <h2 style="color:var(--green);margin-top:14px">✓ Completed (${compFiltered.length}${compFiltered.length !== completedAll.length ? ` / ${completedAll.length}` : ''})</h2>
+      <div id="prob_comp_wrap">${compHtml}</div>
+      <h2 style="color:var(--hard);margin-top:20px">✗ Not completed (${notCompFiltered.length}${notCompFiltered.length !== notCompletedAll.length ? ` / ${notCompletedAll.length}` : ''})</h2>
+      <div id="prob_not_comp_wrap">${notCompHtml}</div>`;
 
     const container = $('#prob_tables_container');
     if (container) {
       container.innerHTML = tablesHtml;
       container.querySelectorAll('tr[data-id]').forEach((tr) =>
         tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+
+      const compPrev = container.querySelector('.prob-comp-prev');
+      const compNext = container.querySelector('.prob-comp-next');
+      if (compPrev) compPrev.addEventListener('click', () => { filterState.compPage--; render(); });
+      if (compNext) compNext.addEventListener('click', () => { filterState.compPage++; render(); });
+
+      const notCompPrev = container.querySelector('.prob-notcomp-prev');
+      const notCompNext = container.querySelector('.prob-notcomp-next');
+      if (notCompPrev) notCompPrev.addEventListener('click', () => { filterState.notCompPage--; render(); });
+      if (notCompNext) notCompNext.addEventListener('click', () => { filterState.notCompPage++; render(); });
     }
   }
 
-  const qInput = $('#prob_q');
-  if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; render(); });
-  const deptSel = $('#prob_dept');
-  if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; render(); });
-  const secSel = $('#prob_sec');
-  if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; render(); });
-  const campusSel = $('#prob_campus');
-  if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; render(); });
+  if (totalAll > 0) {
+    const qInput = $('#prob_q');
+    if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; filterState.compPage = 1; filterState.notCompPage = 1; render(); });
+    const deptSel = $('#prob_dept');
+    if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; filterState.compPage = 1; filterState.notCompPage = 1; render(); });
+    const secSel = $('#prob_sec');
+    if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; filterState.compPage = 1; filterState.notCompPage = 1; render(); });
+    const campusSel = $('#prob_campus');
+    if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; filterState.compPage = 1; filterState.notCompPage = 1; render(); });
 
-  const tabContainer = $('#prob_filter_tabs');
-  if (tabContainer) {
-    tabContainer.querySelectorAll('.drawer-tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        filterState.status = btn.dataset.status;
+    const clearBtn = $('#prob_filter_clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        filterState.q = ''; filterState.dept = ''; filterState.sec = ''; filterState.campus = '';
+        filterState.compPage = 1; filterState.notCompPage = 1;
+        if (qInput) qInput.value = '';
+        if (deptSel) deptSel.value = '';
+        if (secSel) secSel.value = '';
+        if (campusSel) campusSel.value = '';
         render();
       });
-    });
-  }
-
-  const clearBtn = $('#prob_filter_clear');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      filterState.q = ''; filterState.dept = ''; filterState.sec = ''; filterState.campus = ''; filterState.status = 'all';
-      if (qInput) qInput.value = '';
-      if (deptSel) deptSel.value = '';
-      if (secSel) secSel.value = '';
-      if (campusSel) campusSel.value = '';
-      render();
-    });
+    }
   }
 
   render();
@@ -570,13 +631,13 @@ function renderViewDist(d) {
     </div>` : '';
   el.innerHTML = rowsHtml + pager;
   el.querySelectorAll('.dist-row').forEach((b) =>
-    b.addEventListener('click', () => showViewCompleters(Number(b.dataset.count))));
+    b.addEventListener('click', () => showViewCompleters(Number(b.dataset.count), d.studentCount)));
   const prev = el.querySelector('.dist-prev'), next = el.querySelector('.dist-next');
   if (prev) prev.addEventListener('click', () => { viewDistPage--; renderViewDist(d); });
   if (next) next.addEventListener('click', () => { viewDistPage++; renderViewDist(d); });
 }
 
-async function showViewCompleters(count) {
+async function showViewCompleters(count, totalStudentsInCollege) {
   $('#drawerContent').innerHTML = '<p class="hint">Loading…</p>';
   $('#drawer').classList.add('open');
   $('#drawerBackdrop').classList.add('show');
@@ -589,14 +650,28 @@ async function showViewCompleters(count) {
   }
   const rawList = d.students || [];
   const total = rawList.length;
+  const cohortTotal = totalStudentsInCollege || total;
 
   const depts = [...new Set(rawList.map((s) => s.department).filter(Boolean))].sort();
   const secs = [...new Set(rawList.map((s) => s.section).filter(Boolean))].sort();
   const campuses = [...new Set(rawList.map((s) => s.campus).filter(Boolean))].sort();
 
-  const filterState = { q: '', dept: '', sec: '', campus: '' };
+  const filterState = { q: '', dept: '', sec: '', campus: '', page: 1 };
 
   const head = `<h2 style="margin-top:0">${total} student${total === 1 ? '' : 's'} solved exactly ${count} question${count === 1 ? '' : 's'}</h2>`;
+
+  const sharePct = cohortTotal ? Math.round((total / cohortTotal) * 100) : 0;
+  const compStatHtml = cohortTotal > 0 ? `
+    <div class="prob-stat-bar">
+      <div class="prob-stat-track">
+        <div class="prob-stat-fill comp" style="width:${sharePct}%" title="${total} students (${sharePct}%)"></div>
+        <div class="prob-stat-fill notcomp" style="width:${100 - sharePct}%"></div>
+      </div>
+      <div class="prob-stat-labels">
+        <span><b>${total}</b> of ${cohortTotal} students (${sharePct}% of cohort)</span>
+        <span class="hint">Bucket: solved ${count}</span>
+      </div>
+    </div>` : '';
 
   const deptOpts = depts.length ? `<select id="comp_dept" class="drawer-filter-sel"><option value="">All depts</option>${depts.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
   const secOpts = secs.length ? `<select id="comp_sec" class="drawer-filter-sel"><option value="">All sections</option>${secs.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>` : '';
@@ -616,7 +691,7 @@ async function showViewCompleters(count) {
       </div>
     </div>` : '';
 
-  $('#drawerContent').innerHTML = `${head}${filterBar}<div id="comp_table_container"></div>`;
+  $('#drawerContent').innerHTML = `${head}${compStatHtml}${filterBar}<div id="comp_table_container"></div>`;
 
   function render() {
     const filtered = filterDrawerStudents(rawList, filterState);
@@ -631,39 +706,43 @@ async function showViewCompleters(count) {
     const clearBtn = $('#comp_filter_clear');
     if (clearBtn) clearBtn.style.display = isFiltered ? 'inline' : 'none';
 
-    const tableHtml = filtered.length
-      ? `<table class="mini-table"><thead><tr><th>Name</th><th>Username</th><th>Reg no</th><th>Section</th>${depts.length ? '<th>Dept</th>' : ''}${campuses.length > 1 ? '<th>Campus</th>' : ''}</tr></thead><tbody>${
-          filtered.map((s) => `<tr data-id="${s.id}" style="cursor:pointer">
-            <td>${esc(s.name || '')}</td><td>@${esc(s.username || '')}</td>
-            <td>${esc(s.register_number || '—')}</td><td>${esc(s.section || '—')}</td>
-            ${depts.length ? `<td>${esc(s.department || '—')}</td>` : ''}
-            ${campuses.length > 1 ? `<td>${esc(s.campus || '—')}</td>` : ''}
-          </tr>`).join('')
-        }</tbody></table>`
-      : '<p class="empty">No matching students found.</p>';
+    const tableWithPagerHtml = renderDrawerTablePage({
+      idPrefix: 'comp-list',
+      list: filtered,
+      page: filterState.page,
+      depts,
+      campuses,
+      emptyMsg: isFiltered ? 'No matching students found.' : 'No students in this bucket.'
+    });
 
     const container = $('#comp_table_container');
     if (container) {
-      container.innerHTML = tableHtml;
+      container.innerHTML = tableWithPagerHtml;
       container.querySelectorAll('tr[data-id]').forEach((tr) =>
         tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+
+      const prevBtn = container.querySelector('.comp-list-prev');
+      const nextBtn = container.querySelector('.comp-list-next');
+      if (prevBtn) prevBtn.addEventListener('click', () => { filterState.page--; render(); });
+      if (nextBtn) nextBtn.addEventListener('click', () => { filterState.page++; render(); });
     }
   }
 
   if (total > 0) {
     const qInput = $('#comp_q');
-    if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; render(); });
+    if (qInput) qInput.addEventListener('input', (e) => { filterState.q = e.target.value; filterState.page = 1; render(); });
     const deptSel = $('#comp_dept');
-    if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; render(); });
+    if (deptSel) deptSel.addEventListener('change', (e) => { filterState.dept = e.target.value; filterState.page = 1; render(); });
     const secSel = $('#comp_sec');
-    if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; render(); });
+    if (secSel) secSel.addEventListener('change', (e) => { filterState.sec = e.target.value; filterState.page = 1; render(); });
     const campusSel = $('#comp_campus');
-    if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; render(); });
+    if (campusSel) campusSel.addEventListener('change', (e) => { filterState.campus = e.target.value; filterState.page = 1; render(); });
 
     const clearBtn = $('#comp_filter_clear');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         filterState.q = ''; filterState.dept = ''; filterState.sec = ''; filterState.campus = '';
+        filterState.page = 1;
         if (qInput) qInput.value = '';
         if (deptSel) deptSel.value = '';
         if (secSel) secSel.value = '';
@@ -719,3 +798,49 @@ setInterval(() => {
   if ($('#drawer').classList.contains('open')) return; // don't disrupt an open drawer
   load({ chart: false });
 }, 30000);
+
+// ---- Read-only Sync now button + polling -----------------------------------
+let viewPollTimer = null;
+function pollViewSync() {
+  clearInterval(viewPollTimer);
+  const statusEl = $('#syncStatus');
+  if (statusEl) statusEl.textContent = 'syncing…';
+  viewPollTimer = setInterval(async () => {
+    try {
+      const st = await api(`/view/${encodeURIComponent(token)}/sync-state`);
+      if (st.running) {
+        if (statusEl) statusEl.textContent = 'syncing…';
+      } else {
+        clearInterval(viewPollTimer);
+        if (statusEl) {
+          statusEl.textContent = st.lastRun
+            ? `synced ${st.lastRun.ok}/${st.lastRun.students}` + (st.lastRun.newCompletions ? `, +${st.lastRun.newCompletions} completions` : '')
+            : 'synced ✓';
+          setTimeout(() => { if (statusEl.textContent.startsWith('synced')) statusEl.textContent = ''; }, 6000);
+        }
+        load({ chart: true });
+      }
+    } catch {
+      clearInterval(viewPollTimer);
+      if (statusEl) statusEl.textContent = '';
+    }
+  }, 2500);
+}
+
+const syncBtn = $('#syncNowBtn');
+if (syncBtn) {
+  syncBtn.addEventListener('click', async () => {
+    try {
+      syncBtn.disabled = true;
+      const statusEl = $('#syncStatus');
+      if (statusEl) statusEl.textContent = 'starting sync…';
+      await api(`/view/${encodeURIComponent(token)}/sync`, { method: 'POST' });
+      pollViewSync();
+    } catch (e) {
+      alert('Could not start sync: ' + (e.message || e));
+    } finally {
+      setTimeout(() => { syncBtn.disabled = false; }, 3000);
+    }
+  });
+}
+

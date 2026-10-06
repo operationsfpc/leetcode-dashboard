@@ -160,10 +160,9 @@ export async function getOrCreateCollege(name) {
   return db.prepare('SELECT * FROM colleges WHERE name = ?').get(clean);
 }
 
-// Public-safe list (never exposes the access code).
 export const listColleges = async () =>
   db.prepare(
-    `SELECT c.id, c.name, c.created_at,
+    `SELECT c.id, c.name, c.access_code, c.view_token, c.created_at,
        c.sync_mode, c.sync_from, c.sync_to, c.refresh_mode, c.refresh_from, c.refresh_to,
        CASE WHEN c.access_code IS NOT NULL AND c.access_code != '' THEN 1 ELSE 0 END AS has_code,
        (SELECT COUNT(*) FROM students s WHERE s.college_id = c.id) AS student_count

@@ -18,8 +18,10 @@
         <p class="sub">Read-only view</p>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <span class="pill medium">Read-only · updates automatically</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button id="syncNowBtn" class="btn btn-ghost" title="Refresh students from LeetCode now">⟳ Sync now</button>
+      <span id="syncStatus" class="sync-status"></span>
+      <span class="pill medium">Read-only</span>
       <button id="themeToggle" class="btn btn-ghost" title="Toggle light / dark">☀️</button>
     </div>
   </header>

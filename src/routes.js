@@ -78,7 +78,7 @@ function isPublicReq(req) {
   if (m === 'GET' && /\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
   if (m === 'POST' && (p === '/student/login' || p === '/student/register' || p.includes('student/login') || p.includes('student/register'))) return true;
   if (m === 'GET' && /\/student\/\d+\/dashboard$/.test(p)) return true;
-  if (m === 'GET' && /\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion)?$/.test(p)) return true; // shared read-only link
+  if ((m === 'GET' || m === 'POST') && /\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion|\/sync|\/sync-state)?$/.test(p)) return true; // shared read-only link + scoped sync
   if (m === 'GET' && /\/public\/practice\/[^/]+$/.test(p)) return true; // public questions-only list
   return false;
 }
@@ -313,6 +313,26 @@ router.get('/view/:token/practice/:problemId/completion', h(async (req, res) => 
   if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
   const r = await store.getProblemCompletion(c.id, Number(req.params.problemId));
   res.json(r);
+}));
+
+// Read-only sync for this college alone (scoped to the share token or env college)
+router.post('/view/:token/sync', h(async (req, res) => {
+  let c = await store.getCollegeByToken(req.params.token);
+  if (!c && process.env.COLLEGE_ID) {
+    c = await store.getCollege(Number(process.env.COLLEGE_ID));
+  }
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+  runSync({ collegeId: c.id }).catch((e) => console.error('view sync error', e.message));
+  res.json({ started: true, collegeId: c.id, collegeName: c.name });
+}));
+
+router.get('/view/:token/sync-state', h(async (req, res) => {
+  let c = await store.getCollegeByToken(req.params.token);
+  if (!c && process.env.COLLEGE_ID) {
+    c = await store.getCollege(Number(process.env.COLLEGE_ID));
+  }
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+  res.json(getSyncState());
 }));
 
 // Read-only individual student detail, scoped to the share token's college.

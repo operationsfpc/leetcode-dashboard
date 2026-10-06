@@ -397,4 +397,56 @@ textarea, .search, .field input {
   background: none; border: none; color: var(--accent); font-size: 11px;
   cursor: pointer; padding: 0; text-decoration: underline;
 }
+.drawer-pager {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; margin: 8px 0 14px; font-size: 12px;
+}
+.drawer-pager .hint { font-size: 11px; }
+
+/* Problem completion stat info graph in drawer */
+.prob-stat-bar {
+  margin: 10px 0 14px; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.prob-stat-track {
+  display: flex; height: 10px; width: 100%;
+  background: var(--border); border-radius: 6px; overflow: hidden;
+  margin-bottom: 6px;
+}
+.prob-stat-fill.comp {
+  background: var(--green); height: 100%; transition: width .3s ease;
+}
+.prob-stat-fill.notcomp {
+  background: rgba(255, 77, 79, 0.45); height: 100%; transition: width .3s ease;
+}
+.prob-stat-labels {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; font-weight: 600;
+}
+
+/* College Table styling */
+#collegeTable { width: 100%; }
+#collegeTable th, #collegeTable td { padding: 10px 12px; vertical-align: middle; }
+#collegeTable .college-name { font-weight: 700; font-size: 14px; color: var(--text); }
+#collegeTable .code-badge {
+  background: var(--panel-2); border: 1px solid var(--border);
+  padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 13px;
+  letter-spacing: 0.5px; font-family: monospace; color: var(--accent);
+}
+#collegeTable .link-box {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+}
+#collegeTable .link-input {
+  width: 190px; padding: 5px 8px; font-size: 12px; background: var(--panel-2);
+}
+#collegeTable .code-box {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+}
+#collegeTable .code-input {
+  width: 120px; padding: 5px 8px; font-size: 12px;
+}
+
+
+
 

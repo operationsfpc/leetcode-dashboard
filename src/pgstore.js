@@ -80,7 +80,7 @@ export async function getOrCreateCollege(name) {
 
 export async function listColleges() {
   const { rows } = await q(
-    `SELECT c.id, c.name, ${TS('c.created_at', 'created_at')},
+    `SELECT c.id, c.name, c.access_code, c.view_token, ${TS('c.created_at', 'created_at')},
        c.sync_mode, c.sync_from, c.sync_to, c.refresh_mode, c.refresh_from, c.refresh_to,
        (CASE WHEN c.access_code IS NOT NULL AND c.access_code <> '' THEN 1 ELSE 0 END) AS has_code,
        (SELECT COUNT(*) FROM lc_students s WHERE s.college_id = c.id)::int AS student_count
