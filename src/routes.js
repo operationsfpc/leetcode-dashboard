@@ -452,6 +452,41 @@ const handleViewUpdateStudent = async (req, res) => {
 router.patch('/view/:token/student/:studentId', h(handleViewUpdateStudent));
 router.put('/view/:token/student/:studentId', h(handleViewUpdateStudent));
 
+// Add student via view token (scoped to the share token's college)
+router.post('/view/:token/students', h(async (req, res) => {
+  const c = await store.getCollegeByToken(req.params.token);
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+
+  const name = (req.body.name || '').trim();
+  const profile = (req.body.url || req.body.profile || req.body.username || req.body.leetcode || '').trim();
+  if (!name) return res.status(400).json({ error: 'Student name is required.' });
+  const username = parseUsername(profile);
+  if (!username) return res.status(400).json({ error: 'Enter a valid LeetCode profile URL or username.' });
+
+  const conflict = await store.getStudentByUsername(c.id, username);
+  if (conflict) {
+    return res.status(400).json({ error: `A student with username "${username}" already exists in this college.` });
+  }
+
+  const clean = (k) => { const v = (req.body[k] || '').trim(); return v || null; };
+  const id = await store.upsertStudent({
+    college_id: c.id,
+    name,
+    username,
+    profile_url: profile.includes('leetcode.com') ? profile : `https://leetcode.com/u/${username}/`,
+    register_number: clean('register_number'),
+    email: clean('email'),
+    department: clean('department'),
+    section: clean('section'),
+    year: clean('year'),
+    campus: clean('campus'),
+  });
+
+  runSyncStudent(Number(id)).catch((e) => console.warn(`[viewAddStudent] initial sync note: ${e.message}`));
+
+  res.json({ ok: true, id, username, college: c });
+}));
+
 // Existing batches / departments / campuses for a college — used to populate
 // the student self-register dropdowns. Non-sensitive metadata, no code needed.
 router.get('/colleges/:id/options', h(async (req, res) => {

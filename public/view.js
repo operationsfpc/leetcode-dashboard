@@ -1271,3 +1271,87 @@ $('#editStudentForm')?.addEventListener('submit', async (e) => {
   }
 });
 
+// ---- Add Student Modal ----------------------------------------------------
+function openAddStudentModal() {
+  setMsg('#addStudentMsg', '', '');
+  const saveBtn = $('#addStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '＋ Add Student';
+  }
+  $('#addStudentName').value = '';
+  $('#addStudentUrl').value = '';
+  $('#addStudentReg').value = '';
+  $('#addStudentEmail').value = '';
+  $('#addStudentDept').value = '';
+  $('#addStudentSection').value = '';
+  $('#addStudentYear').value = '';
+  $('#addStudentCampus').value = '';
+
+  $('#addStudentModalBackdrop')?.classList.add('open');
+  setTimeout(() => $('#addStudentName')?.focus(), 50);
+}
+
+function closeAddStudentModal() {
+  $('#addStudentModalBackdrop')?.classList.remove('open');
+  setMsg('#addStudentMsg', '', '');
+}
+
+$('#addStudentBtn')?.addEventListener('click', openAddStudentModal);
+$('#addStudentModalCloseBtn')?.addEventListener('click', closeAddStudentModal);
+$('#addStudentCancelBtn')?.addEventListener('click', closeAddStudentModal);
+$('#addStudentModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'addStudentModalBackdrop') closeAddStudentModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#addStudentModalBackdrop')?.classList.contains('open')) {
+    closeAddStudentModal();
+  }
+});
+
+$('#addStudentForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('#addStudentName').value.trim();
+  const url = $('#addStudentUrl').value.trim();
+
+  if (!name) return setMsg('#addStudentMsg', 'Student name is required.', 'err');
+  if (!url) return setMsg('#addStudentMsg', 'LeetCode profile URL or username is required.', 'err');
+
+  const body = {
+    name,
+    url,
+    register_number: $('#addStudentReg').value.trim(),
+    email: $('#addStudentEmail').value.trim(),
+    department: $('#addStudentDept').value.trim(),
+    section: $('#addStudentSection').value.trim(),
+    year: $('#addStudentYear').value.trim(),
+    campus: $('#addStudentCampus').value.trim(),
+  };
+
+  const saveBtn = $('#addStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Adding…';
+  }
+  setMsg('#addStudentMsg', 'Adding student and syncing LeetCode stats…', '');
+
+  try {
+    await api(`/view/${encodeURIComponent(token)}/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    closeAddStudentModal();
+    renderStudents._sig = null; // force table repaint
+    await load();
+  } catch (err) {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '＋ Add Student';
+    }
+    setMsg('#addStudentMsg', err.message || 'Failed to add student.', 'err');
+  }
+});
+
