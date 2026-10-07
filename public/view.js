@@ -10,6 +10,7 @@ let lastData = null, viewPracticeDomain = '__all';
 const collapsedDomains = new Set(); // folded domains in the practice list
 const collapsedTopics = new Set(); // folded topics (keyed by domain|topic)
 const dash = { batch: '', department: '', campus: '', q: '', risk: false, page: 1, pageSize: 100, total: 0 };
+let collegeFilterOptions = { departments: [], batches: [], years: [], campuses: [], mappings: [] };
 
 function lcChartColors() {
   const cs = getComputedStyle(document.documentElement);
@@ -219,7 +220,13 @@ function render(d, opts) {
     lastMonthlySig = sig;
   }
 
-  if (!filtersLoaded && d.filters) { populateFilters(d.filters); filtersLoaded = true; }
+  if (d.filters) {
+    collegeFilterOptions = d.filters;
+    if (!filtersLoaded) {
+      populateFilters(d.filters);
+      filtersLoaded = true;
+    }
+  }
   renderStudents(d.students);
   renderPager();
   renderPractice(d);
@@ -1165,6 +1172,167 @@ const setMsg = (sel, text, kind) => {
   el.style.display = text ? 'block' : 'none';
 };
 
+// ---- College Metadata Mapped Dropdowns (Department / Section / Year / Campus) ----
+function renderSelectOptions(selEl, defaultLabel, options, currentValue, allowCustom, customLabel) {
+  if (!selEl) return;
+  const rawOpts = [...new Set((options || []).filter(Boolean))].map((x) => String(x).trim()).filter(Boolean);
+  const opts = rawOpts.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const cur = (currentValue || '').trim();
+
+  let html = `<option value="">${esc(defaultLabel)}</option>`;
+  for (const opt of opts) {
+    html += `<option value="${esc(opt)}"${opt === cur ? ' selected' : ''}>${esc(opt)}</option>`;
+  }
+  if (cur && !opts.includes(cur)) {
+    html += `<option value="${esc(cur)}" selected>${esc(cur)}</option>`;
+  }
+  if (allowCustom) {
+    html += `<option value="__custom__">＋ ${esc(customLabel || 'Add new / custom...')}</option>`;
+  }
+  selEl.innerHTML = html;
+  if (cur) selEl.value = cur;
+}
+
+function handleCustomPrompt(selEl, fieldName, onSelected) {
+  if (!selEl) return;
+  selEl.dataset.prevVal = selEl.value || '';
+  selEl.addEventListener('change', () => {
+    if (selEl.value === '__custom__') {
+      const entered = window.prompt(`Enter new ${fieldName}:`);
+      if (entered && entered.trim()) {
+        const val = entered.trim();
+        let opt = Array.from(selEl.options).find((o) => o.value === val);
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = val;
+          opt.textContent = val;
+          const customOpt = selEl.querySelector('option[value="__custom__"]');
+          if (customOpt) selEl.insertBefore(opt, customOpt);
+          else selEl.appendChild(opt);
+        }
+        selEl.value = val;
+        selEl.dataset.prevVal = val;
+        if (onSelected) onSelected(val);
+      } else {
+        selEl.value = selEl.dataset.prevVal || '';
+      }
+    } else {
+      selEl.dataset.prevVal = selEl.value || '';
+      if (onSelected) onSelected(selEl.value);
+    }
+  });
+}
+
+function setupModalDropdowns(prefix, initialVals = {}) {
+  const deptEl = $(`#${prefix}Dept`);
+  const secEl = $(`#${prefix}Section`);
+  const yearEl = $(`#${prefix}Year`);
+  const camEl = $(`#${prefix}Campus`);
+
+  const f = collegeFilterOptions || { departments: [], batches: [], years: [], campuses: [], mappings: [] };
+  const mappings = f.mappings || [];
+
+  const initial = {
+    dept: (initialVals.department || '').trim(),
+    sec: (initialVals.section || '').trim(),
+    year: (initialVals.year || '').trim(),
+    campus: (initialVals.campus || '').trim(),
+  };
+
+  function updateCascadedOptions(sourceField) {
+    const curDept = (deptEl?.value || '').trim();
+    const curSec = (secEl?.value || '').trim();
+    const curYear = (yearEl?.value || '').trim();
+    const curCam = (camEl?.value || '').trim();
+
+    // Filter mappings based on currently selected department
+    let matched = mappings;
+    if (curDept) {
+      matched = matched.filter((m) => m.department === curDept);
+    }
+
+    // Available options from matched mappings (or full college options if none)
+    const availSecs = (matched.length
+      ? [...new Set(matched.map((m) => m.section).filter(Boolean))]
+      : (f.batches || [])).filter(Boolean);
+
+    const availYears = (matched.length
+      ? [...new Set(matched.map((m) => m.year).filter(Boolean))]
+      : (f.years || [])).filter(Boolean);
+
+    const availCampuses = (matched.length
+      ? [...new Set(matched.map((m) => m.campus).filter(Boolean))]
+      : (f.campuses || [])).filter(Boolean);
+
+    // Section options
+    let targetSec = curSec;
+    if (sourceField === 'dept' && !targetSec && availSecs.length === 1 && curDept) {
+      targetSec = availSecs[0];
+    }
+    renderSelectOptions(secEl, '— Select Section —', availSecs.length ? availSecs : f.batches, targetSec, true, 'Add new section...');
+
+    // Year options
+    let targetYear = curYear;
+    if (sourceField === 'dept' && !targetYear && availYears.length === 1 && curDept) {
+      targetYear = availYears[0];
+    }
+    renderSelectOptions(yearEl, '— Select Year —', availYears.length ? availYears : f.years, targetYear, true, 'Add new year...');
+
+    // Campus options
+    let targetCam = curCam;
+    if (!targetCam && (availCampuses.length === 1 || f.campuses?.length === 1)) {
+      targetCam = availCampuses[0] || f.campuses[0];
+    }
+    renderSelectOptions(camEl, '— Select Campus —', availCampuses.length ? availCampuses : f.campuses, targetCam, true, 'Add new campus...');
+  }
+
+  // Render department first
+  renderSelectOptions(deptEl, '— Select Department —', f.departments, initial.dept, true, 'Add new department...');
+
+  // Render children according to initial department
+  updateCascadedOptions('init');
+
+  // Set explicit initial values if passed
+  if (initial.sec && secEl) secEl.value = initial.sec;
+  if (initial.year && yearEl) yearEl.value = initial.year;
+  if (initial.campus && camEl) camEl.value = initial.campus;
+
+  // Listeners (bind only once per element)
+  if (deptEl && !deptEl._hasMappedListener) {
+    deptEl._hasMappedListener = true;
+    handleCustomPrompt(deptEl, 'Department', () => updateCascadedOptions('dept'));
+  }
+  if (secEl && !secEl._hasMappedListener) {
+    secEl._hasMappedListener = true;
+    handleCustomPrompt(secEl, 'Section / Batch', (val) => {
+      if (val && deptEl && !deptEl.value) {
+        const matchingDepts = [...new Set(mappings.filter((m) => m.section === val).map((m) => m.department).filter(Boolean))];
+        if (matchingDepts.length === 1) {
+          deptEl.value = matchingDepts[0];
+          updateCascadedOptions('dept');
+        }
+      }
+    });
+  }
+  if (yearEl && !yearEl._hasMappedListener) {
+    yearEl._hasMappedListener = true;
+    handleCustomPrompt(yearEl, 'Year', (val) => {
+      if (val && deptEl && !deptEl.value) {
+        const matchingDepts = [...new Set(mappings.filter((m) => m.year === val).map((m) => m.department).filter(Boolean))];
+        if (matchingDepts.length === 1) {
+          deptEl.value = matchingDepts[0];
+          updateCascadedOptions('dept');
+        }
+      }
+    });
+  }
+  if (camEl && !camEl._hasMappedListener) {
+    camEl._hasMappedListener = true;
+    handleCustomPrompt(camEl, 'Campus', () => {});
+  }
+}
+
+// ---- Edit Student Modal ----------------------------------------------------
 async function openEditStudentModal(id) {
   setMsg('#editStudentMsg', '', '');
   const saveBtn = $('#editStudentSaveBtn');
@@ -1191,10 +1359,13 @@ async function openEditStudentModal(id) {
   $('#editStudentUrl').value = student.profile_url || student.username || '';
   $('#editStudentReg').value = student.register_number || '';
   $('#editStudentEmail').value = student.email || '';
-  $('#editStudentDept').value = student.department || '';
-  $('#editStudentSection').value = student.section || '';
-  $('#editStudentYear').value = student.year || '';
-  $('#editStudentCampus').value = student.campus || '';
+
+  setupModalDropdowns('editStudent', {
+    department: student.department || '',
+    section: student.section || '',
+    year: student.year || '',
+    campus: student.campus || '',
+  });
 
   $('#editStudentModalTitle').textContent = `Edit Student · ${student.name || ''}`;
   $('#editStudentModalBackdrop')?.classList.add('open');
@@ -1283,10 +1454,8 @@ function openAddStudentModal() {
   $('#addStudentUrl').value = '';
   $('#addStudentReg').value = '';
   $('#addStudentEmail').value = '';
-  $('#addStudentDept').value = '';
-  $('#addStudentSection').value = '';
-  $('#addStudentYear').value = '';
-  $('#addStudentCampus').value = '';
+
+  setupModalDropdowns('addStudent', {});
 
   $('#addStudentModalBackdrop')?.classList.add('open');
   setTimeout(() => $('#addStudentName')?.focus(), 50);

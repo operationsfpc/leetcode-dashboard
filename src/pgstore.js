@@ -246,19 +246,39 @@ export async function getCollegeMonthly(collegeId, f = {}) {
 }
 
 export async function getFilterOptions(collegeId) {
-  const { rows } = await q(`
-    SELECT
-      ARRAY(SELECT DISTINCT section FROM lc_students WHERE college_id=$1 AND section IS NOT NULL AND section <> '' ORDER BY section) AS batches,
-      ARRAY(SELECT DISTINCT department FROM lc_students WHERE college_id=$1 AND department IS NOT NULL AND department <> '' ORDER BY department) AS departments,
-      ARRAY(SELECT DISTINCT campus FROM lc_students WHERE college_id=$1 AND campus IS NOT NULL AND campus <> '' ORDER BY campus) AS campuses,
-      ARRAY(SELECT DISTINCT year FROM lc_students WHERE college_id=$1 AND year IS NOT NULL AND year <> '' ORDER BY year) AS years
-  `, [collegeId]);
-  const r = rows[0] || {};
+  const [filterRes, mapRes] = await Promise.all([
+    q(`
+      SELECT
+        ARRAY(SELECT DISTINCT section FROM lc_students WHERE college_id=$1 AND section IS NOT NULL AND section <> '' ORDER BY section) AS batches,
+        ARRAY(SELECT DISTINCT department FROM lc_students WHERE college_id=$1 AND department IS NOT NULL AND department <> '' ORDER BY department) AS departments,
+        ARRAY(SELECT DISTINCT campus FROM lc_students WHERE college_id=$1 AND campus IS NOT NULL AND campus <> '' ORDER BY campus) AS campuses,
+        ARRAY(SELECT DISTINCT year FROM lc_students WHERE college_id=$1 AND year IS NOT NULL AND year <> '' ORDER BY year) AS years
+    `, [collegeId]),
+    q(`
+      SELECT DISTINCT department, section, year, campus
+      FROM lc_students
+      WHERE college_id=$1
+        AND (
+          (department IS NOT NULL AND department <> '') OR
+          (section IS NOT NULL AND section <> '') OR
+          (year IS NOT NULL AND year <> '') OR
+          (campus IS NOT NULL AND campus <> '')
+        )
+      ORDER BY department NULLS LAST, section NULLS LAST, year NULLS LAST
+    `, [collegeId]),
+  ]);
+  const r = filterRes.rows[0] || {};
   return {
     batches: r.batches || [],
     departments: r.departments || [],
     campuses: r.campuses || [],
     years: r.years || [],
+    mappings: (mapRes.rows || []).map((m) => ({
+      department: m.department || '',
+      section: m.section || '',
+      year: m.year || '',
+      campus: m.campus || '',
+    })),
   };
 }
 
