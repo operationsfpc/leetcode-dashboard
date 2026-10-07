@@ -439,6 +439,19 @@ router.get('/view/:token/student/:studentId', h(async (req, res) => {
   });
 }));
 
+// Update student via view token (scoped to the share token's college)
+const handleViewUpdateStudent = async (req, res) => {
+  const c = await store.getCollegeByToken(req.params.token);
+  if (!c) return res.status(404).json({ error: 'Invalid or expired link.' });
+  const studentId = Number(req.params.studentId);
+  const existing = await store.getStudent(studentId);
+  if (!existing || existing.college_id !== c.id) return res.status(404).json({ error: 'Student not found.' });
+  req.params.id = studentId;
+  return handleUpdateStudent(req, res);
+};
+router.patch('/view/:token/student/:studentId', h(handleViewUpdateStudent));
+router.put('/view/:token/student/:studentId', h(handleViewUpdateStudent));
+
 // Existing batches / departments / campuses for a college — used to populate
 // the student self-register dropdowns. Non-sensitive metadata, no code needed.
 router.get('/colleges/:id/options', h(async (req, res) => {

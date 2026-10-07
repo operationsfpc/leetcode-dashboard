@@ -56,7 +56,7 @@
         <div class="table-wrap">
           <table id="studentTable">
             <thead><tr>
-              <th>#</th><th>Student</th><th>Global rank</th><th>Easy · Medium · Hard</th><th>Total</th><th>Practice</th>
+              <th>#</th><th>Student</th><th>Global rank</th><th>Easy · Medium · Hard</th><th>Total</th><th>Practice</th><th></th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -91,13 +91,82 @@
     </div>
   </main>
 
+  <!-- Edit Student Modal Dialog -->
+  <div id="editStudentModalBackdrop" class="shad-dialog-backdrop">
+    <div class="shad-dialog" style="max-width:520px">
+      <div class="shad-dialog-header">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3 id="editStudentModalTitle">Edit Student</h3>
+            <p id="editStudentModalSub">Update student details, LeetCode profile, or metadata.</p>
+          </div>
+          <button type="button" id="editStudentModalCloseBtn" class="shad-btn shad-btn-ghost-sm" style="padding:4px 8px;font-size:16px;line-height:1;border:none;cursor:pointer" title="Close">✕</button>
+        </div>
+      </div>
+      <form id="editStudentForm" onsubmit="return false;">
+        <div class="shad-dialog-body" style="display:flex;flex-direction:column;gap:12px;max-height:calc(85vh - 140px);overflow-y:auto">
+          <input type="hidden" id="editStudentId" />
+          
+          <label class="field" style="margin:0">
+            <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Student Name *</span>
+            <input id="editStudentName" class="search" placeholder="e.g. Asha Rao" required style="width:100%" />
+          </label>
+          
+          <label class="field" style="margin:0">
+            <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">LeetCode Profile URL or Username *</span>
+            <input id="editStudentUrl" class="search" placeholder="e.g. https://leetcode.com/u/asharao/ or asharao" required style="width:100%" />
+          </label>
+
+          <div class="row" style="margin:0;gap:10px">
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Register Number</span>
+              <input id="editStudentReg" class="search" placeholder="Register number" style="width:100%" />
+            </label>
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Email ID</span>
+              <input id="editStudentEmail" type="email" class="search" placeholder="Email address" style="width:100%" />
+            </label>
+          </div>
+
+          <div class="row" style="margin:0;gap:10px">
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Department</span>
+              <input id="editStudentDept" class="search" placeholder="Department" style="width:100%" />
+            </label>
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Section / Batch</span>
+              <input id="editStudentSection" class="search" placeholder="Section / batch" style="width:100%" />
+            </label>
+          </div>
+
+          <div class="row" style="margin:0;gap:10px">
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Year</span>
+              <input id="editStudentYear" class="search" placeholder="Year" style="width:100%" />
+            </label>
+            <label class="field" style="flex:1;margin:0">
+              <span style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Campus</span>
+              <input id="editStudentCampus" class="search" placeholder="Campus" style="width:100%" />
+            </label>
+          </div>
+
+          <div id="editStudentMsg" class="msg" style="margin:4px 0 0"></div>
+        </div>
+        <div class="shad-dialog-footer">
+          <button type="button" id="editStudentCancelBtn" class="shad-btn shad-btn-outline">Cancel</button>
+          <button type="submit" id="editStudentSaveBtn" class="shad-btn shad-btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="drawer" class="drawer"><div class="drawer-inner">
     <button class="drawer-close" id="drawerClose">✕</button>
     <div id="drawerContent"></div>
   </div></div>
   <div id="drawerBackdrop" class="backdrop"></div>
 
-  <footer class="foot">Shared read-only view. Data comes from students' public LeetCode profiles.</footer>
+  <footer class="foot">Shared view. Data comes from students' public LeetCode profiles.</footer>
   <script>
     (function () {
       var root = document.documentElement, btn = document.getElementById('themeToggle');

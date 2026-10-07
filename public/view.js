@@ -1,6 +1,10 @@
 const $ = (s) => document.querySelector(s);
 const token = decodeURIComponent(location.pathname.split('/view/')[1] || '').replace(/\/+$/, '');
 
+const ic = {
+  edit: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`,
+};
+
 let chart = null, drawerChart = null, lastMonthlySig = null, filtersLoaded = false;
 let lastData = null, viewPracticeDomain = '__all';
 const collapsedDomains = new Set(); // folded domains in the practice list
@@ -207,7 +211,7 @@ function renderStudents(students) {
   renderStudents._sig = sig;
   const tbody = $('#studentTable').querySelector('tbody');
   if (!students.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No students match.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No students match.</td></tr>';
     return;
   }
   tbody.innerHTML = students.map((s) => `
@@ -227,8 +231,24 @@ function renderStudents(students) {
       <td>${difficultyCell(s)}</td>
       <td class="tot-td"><span class="tot">${s.solved_total}</span>${gain(s.solved_total, s.baseline_total)}</td>
       <td>${practiceCell(s)}</td>
+      <td>
+        <div class="row" style="margin:0;gap:4px;justify-content:flex-end;flex-wrap:nowrap">
+          <button class="btn btn-sm btn-ghost edit-student-btn" data-id="${s.id}" title="Edit student data">${ic.edit}</button>
+        </div>
+      </td>
     </tr>`).join('');
-  tbody.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => openStudent(tr.dataset.id)));
+  tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.edit-student-btn')) return;
+      openStudent(tr.dataset.id);
+    });
+  });
+  tbody.querySelectorAll('.edit-student-btn').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditStudentModal(b.dataset.id);
+    });
+  });
 }
 
 function renderPractice(d) {
@@ -749,9 +769,16 @@ async function openStudent(id) {
   const s = d.student;
   const growth = d.monthlySolvedGrowth || [];
   $('#drawerContent').innerHTML = `
-    <h2 style="margin-top:0">${esc(s.name)}</h2>
-    <p class="hint"><a href="${esc(s.profile_url || '#')}" target="_blank">@${esc(s.username)}</a>
-      ${s.found ? '' : '· <span class="cross">profile not found / private</span>'}</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+      <div>
+        <h2 style="margin:0 0 4px">${esc(s.name)}</h2>
+        <p class="hint" style="margin:0"><a href="${esc(s.profile_url || '#')}" target="_blank">@${esc(s.username)}</a>
+          ${s.found ? '' : '· <span class="cross">profile not found / private</span>'}</p>
+      </div>
+      <button class="btn btn-sm btn-ghost edit-student-from-drawer" data-id="${s.id}" title="Edit student details" style="display:inline-flex;align-items:center;gap:6px">
+        ${ic.edit} Edit
+      </button>
+    </div>
     ${(s.register_number || s.section || s.department || s.campus || s.year) ? `<p class="hint" style="line-height:1.7">
       ${s.register_number ? `Reg: <b>${esc(s.register_number)}</b> · ` : ''}${s.section ? `Batch: <b>${esc(s.section)}</b> · ` : ''}${s.department ? `${esc(s.department)} · ` : ''}${s.campus ? esc(s.campus) : ''}${s.year ? ` · ${esc(s.year)}` : ''}</p>` : ''}
     <div class="kv">
@@ -769,6 +796,11 @@ async function openStudent(id) {
       <table><thead><tr><th>Month</th><th>Easy</th><th>Med</th><th>Hard</th><th>Total</th></tr></thead>
       <tbody>${growth.map((g) => `<tr><td>${g.ym}</td><td>${g.easy}</td><td>${g.medium}</td><td>${g.hard}</td><td><b>${g.total}</b></td></tr>`).join('')}</tbody></table>` : ''}
     <div id="stuPracticeContainer"></div>`;
+
+  const ed = $('#drawerContent').querySelector('.edit-student-from-drawer');
+  if (ed) ed.addEventListener('click', () => {
+    openEditStudentModal(ed.dataset.id);
+  });
 
   renderStudentPracticeSection($('#stuPracticeContainer'), d.practice || [], { isAdmin: false });
 
@@ -1051,4 +1083,120 @@ if (syncBtn) {
     }
   });
 }
+
+// ---- Edit Student Modal ----------------------------------------------------
+let activeEditingStudent = null;
+const setMsg = (sel, text, kind) => {
+  const el = $(sel);
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'msg ' + (kind || '');
+  el.style.display = text ? 'block' : 'none';
+};
+
+async function openEditStudentModal(id) {
+  setMsg('#editStudentMsg', '', '');
+  const saveBtn = $('#editStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Changes';
+  }
+
+  let student = (lastData && lastData.students ? lastData.students : []).find((s) => String(s.id) === String(id));
+
+  if (!student || !student.username) {
+    try {
+      const res = await api(`/view/${encodeURIComponent(token)}/student/${id}`);
+      student = res.student;
+    } catch (e) {
+      alert('Could not load student: ' + e.message);
+      return;
+    }
+  }
+
+  activeEditingStudent = student;
+  $('#editStudentId').value = student.id;
+  $('#editStudentName').value = student.name || '';
+  $('#editStudentUrl').value = student.profile_url || student.username || '';
+  $('#editStudentReg').value = student.register_number || '';
+  $('#editStudentEmail').value = student.email || '';
+  $('#editStudentDept').value = student.department || '';
+  $('#editStudentSection').value = student.section || '';
+  $('#editStudentYear').value = student.year || '';
+  $('#editStudentCampus').value = student.campus || '';
+
+  $('#editStudentModalTitle').textContent = `Edit Student · ${student.name || ''}`;
+  $('#editStudentModalBackdrop')?.classList.add('open');
+  setTimeout(() => $('#editStudentName')?.focus(), 50);
+}
+
+function closeEditStudentModal() {
+  $('#editStudentModalBackdrop')?.classList.remove('open');
+  activeEditingStudent = null;
+  setMsg('#editStudentMsg', '', '');
+}
+
+$('#editStudentModalCloseBtn')?.addEventListener('click', closeEditStudentModal);
+$('#editStudentCancelBtn')?.addEventListener('click', closeEditStudentModal);
+$('#editStudentModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'editStudentModalBackdrop') closeEditStudentModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#editStudentModalBackdrop')?.classList.contains('open')) {
+    closeEditStudentModal();
+  }
+});
+
+$('#editStudentForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeEditingStudent) return;
+  const id = $('#editStudentId').value;
+  const name = $('#editStudentName').value.trim();
+  const url = $('#editStudentUrl').value.trim();
+
+  if (!name) return setMsg('#editStudentMsg', 'Student name is required.', 'err');
+  if (!url) return setMsg('#editStudentMsg', 'LeetCode profile URL or username is required.', 'err');
+
+  const body = {
+    name,
+    url,
+    register_number: $('#editStudentReg').value.trim(),
+    email: $('#editStudentEmail').value.trim(),
+    department: $('#editStudentDept').value.trim(),
+    section: $('#editStudentSection').value.trim(),
+    year: $('#editStudentYear').value.trim(),
+    campus: $('#editStudentCampus').value.trim(),
+  };
+
+  const saveBtn = $('#editStudentSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+  }
+  setMsg('#editStudentMsg', 'Saving changes…', '');
+
+  try {
+    await api(`/view/${encodeURIComponent(token)}/student/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    closeEditStudentModal();
+    renderStudents._sig = null; // force table repaint
+    await load();
+
+    // If drawer is open and viewing this student, refresh drawer
+    if ($('#drawer')?.classList.contains('open') && activeEditingStudent && String(activeEditingStudent.id) === String(id)) {
+      openStudent(id);
+    }
+  } catch (err) {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Changes';
+    }
+    setMsg('#editStudentMsg', err.message || 'Failed to update student.', 'err');
+  }
+});
 
