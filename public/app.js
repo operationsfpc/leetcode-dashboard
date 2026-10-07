@@ -1,14 +1,88 @@
 const $ = (sel) => document.querySelector(sel);
 const adminToken = () => { try { return localStorage.getItem('lc_admin_token') || ''; } catch { return ''; } };
+
+let pendingRequests = 0;
+function showGlobalLoader() {
+  let bar = $('#globalTopLoader');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'globalTopLoader';
+    bar.className = 'top-loader';
+    document.body.appendChild(bar);
+  }
+  bar.classList.add('active');
+}
+function hideGlobalLoader() {
+  if (pendingRequests <= 0) {
+    pendingRequests = 0;
+    const bar = $('#globalTopLoader');
+    if (bar) bar.classList.remove('active');
+  }
+}
+
+function tableSkeletonHtml(cols = 9, rows = 6) {
+  return Array.from({ length: rows }, () => `
+    <tr class="skeleton-row">
+      ${Array.from({ length: cols }, (_, i) => `
+        <td><div class="skeleton-cell skeleton-w-${(i % 3) + 1}"></div></td>
+      `).join('')}
+    </tr>
+  `).join('');
+}
+
+function cardsSkeletonHtml(count = 6) {
+  return Array.from({ length: count }, () => `
+    <div class="card skeleton-card">
+      <div class="skeleton-cell" style="width:60%;height:28px;margin-bottom:8px"></div>
+      <div class="skeleton-cell" style="width:40%;height:14px"></div>
+    </div>
+  `).join('');
+}
+
+function drawerSkeletonHtml() {
+  return `
+    <div class="drawer-skeleton" style="padding:10px 0">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+        <div class="skeleton-cell" style="width:48px;height:48px;border-radius:50%;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skeleton-cell" style="width:50%;height:20px;margin-bottom:8px"></div>
+          <div class="skeleton-cell" style="width:30%;height:14px"></div>
+        </div>
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+        ${Array.from({ length: 6 }, () => `
+          <div class="card skeleton-card" style="padding:12px">
+            <div class="skeleton-cell" style="width:50%;height:10px;margin-bottom:8px"></div>
+            <div class="skeleton-cell" style="width:70%;height:20px"></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="skeleton-cell" style="width:40%;height:16px;margin:20px 0 12px"></div>
+      <div class="skeleton-cell" style="width:100%;height:120px;border-radius:10px;margin-bottom:20px"></div>
+      <div class="skeleton-cell" style="width:50%;height:16px;margin:20px 0 12px"></div>
+      ${Array.from({ length: 4 }, () => `
+        <div class="skeleton-cell" style="width:100%;height:36px;margin-bottom:8px;border-radius:6px"></div>
+      `).join('')}
+    </div>
+  `;
+}
+
 const api = (path, opts = {}) => {
+  pendingRequests++;
+  showGlobalLoader();
   const t = adminToken();
   const headers = Object.assign({}, opts.headers || {}, t ? { 'x-admin-token': t } : {});
-  return fetch('/api' + path, { ...opts, headers }).then(async (r) => {
-    const data = await r.json().catch(() => ({}));
-    if (r.status === 401 && /admin/i.test(data.error || '')) { showAdminLogin(); throw new Error(data.error); }
-    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-    return data;
-  });
+  return fetch('/api' + path, { ...opts, headers })
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401 && /admin/i.test(data.error || '')) { showAdminLogin(); throw new Error(data.error); }
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      return data;
+    })
+    .finally(() => {
+      pendingRequests--;
+      hideGlobalLoader();
+    });
 };
 
 let state = {
@@ -597,9 +671,9 @@ function resetDash() {
   const ss = $('#studentSearch'); if (ss) ss.value = '';
   // Instant feedback: drop the old college's rows and show a loading state so the
   // switch feels immediate instead of showing stale data until the fetch returns.
-  $('#summaryCards').innerHTML = '';
+  $('#summaryCards').innerHTML = cardsSkeletonHtml(6);
   const tb = $('#studentTable').querySelector('tbody');
-  if (tb) tb.innerHTML = '<tr><td colspan="8" class="empty">Loading…</td></tr>';
+  if (tb) tb.innerHTML = tableSkeletonHtml(9, 6);
   if ($('#pageInfo')) $('#pageInfo').textContent = '';
 }
 
@@ -1064,12 +1138,13 @@ function renderStudentPracticeSection(containerEl, practiceList, options = {}) {
 }
 
 async function openStudent(id) {
-  // Instant visual feedback: open drawer immediately with loading indicator
+  // Instant visual feedback: open drawer immediately with animated loader and skeleton
   $('#drawerContent').innerHTML = `
-    <div style="padding:32px 16px;text-align:center;color:var(--muted)">
-      <div style="font-size:26px;margin-bottom:10px">⚡</div>
-      <p style="margin:0;font-size:13px">Loading student profile…</p>
-    </div>`;
+    <div class="spinner-wrap" style="padding:32px 16px">
+      <div class="spinner spinner-lg"></div>
+      <p style="margin:0;font-size:13px;font-weight:500">Loading student profile…</p>
+    </div>
+    ${drawerSkeletonHtml()}`;
   openDrawer();
 
   let d;

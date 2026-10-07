@@ -1,9 +1,38 @@
 const $ = (s) => document.querySelector(s);
-const api = (path, opts) => fetch('/api' + path, opts).then(async (r) => {
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
-  return data;
-});
+
+let pendingRequests = 0;
+function showGlobalLoader() {
+  let bar = $('#globalTopLoader');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'globalTopLoader';
+    bar.className = 'top-loader';
+    document.body.appendChild(bar);
+  }
+  bar.classList.add('active');
+}
+function hideGlobalLoader() {
+  if (pendingRequests <= 0) {
+    pendingRequests = 0;
+    const bar = $('#globalTopLoader');
+    if (bar) bar.classList.remove('active');
+  }
+}
+
+const api = (path, opts) => {
+  pendingRequests++;
+  showGlobalLoader();
+  return fetch('/api' + path, opts)
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      return data;
+    })
+    .finally(() => {
+      pendingRequests--;
+      hideGlobalLoader();
+    });
+};
 
 // Session lives only in memory + sessionStorage so a refresh keeps you logged in.
 let session = { collegeId: null, code: null, studentId: null, collegeName: '', name: '' };

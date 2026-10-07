@@ -36,11 +36,77 @@ function recolorChart(c) {
 lcChartTheme();
 window.__onTheme = () => { lcChartTheme(); recolorChart(chart); recolorChart(drawerChart); };
 
-const api = (path, opts = {}) => fetch('/api' + path, opts).then(async (r) => {
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-  return d;
-});
+let pendingRequests = 0;
+function showGlobalLoader() {
+  let bar = $('#globalTopLoader');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'globalTopLoader';
+    bar.className = 'top-loader';
+    document.body.appendChild(bar);
+  }
+  bar.classList.add('active');
+}
+function hideGlobalLoader() {
+  if (pendingRequests <= 0) {
+    pendingRequests = 0;
+    const bar = $('#globalTopLoader');
+    if (bar) bar.classList.remove('active');
+  }
+}
+
+function tableSkeletonHtml(cols = 7, rows = 6) {
+  return Array.from({ length: rows }, () => `
+    <tr class="skeleton-row">
+      ${Array.from({ length: cols }, (_, i) => `
+        <td><div class="skeleton-cell skeleton-w-${(i % 3) + 1}"></div></td>
+      `).join('')}
+    </tr>
+  `).join('');
+}
+
+function drawerSkeletonHtml() {
+  return `
+    <div class="drawer-skeleton" style="padding:10px 0">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+        <div class="skeleton-cell" style="width:48px;height:48px;border-radius:50%;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skeleton-cell" style="width:50%;height:20px;margin-bottom:8px"></div>
+          <div class="skeleton-cell" style="width:30%;height:14px"></div>
+        </div>
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+        ${Array.from({ length: 6 }, () => `
+          <div class="card skeleton-card" style="padding:12px">
+            <div class="skeleton-cell" style="width:50%;height:10px;margin-bottom:8px"></div>
+            <div class="skeleton-cell" style="width:70%;height:20px"></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="skeleton-cell" style="width:40%;height:16px;margin:20px 0 12px"></div>
+      <div class="skeleton-cell" style="width:100%;height:120px;border-radius:10px;margin-bottom:20px"></div>
+      <div class="skeleton-cell" style="width:50%;height:16px;margin:20px 0 12px"></div>
+      ${Array.from({ length: 4 }, () => `
+        <div class="skeleton-cell" style="width:100%;height:36px;margin-bottom:8px;border-radius:6px"></div>
+      `).join('')}
+    </div>
+  `;
+}
+
+const api = (path, opts = {}) => {
+  pendingRequests++;
+  showGlobalLoader();
+  return fetch('/api' + path, opts)
+    .then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      return d;
+    })
+    .finally(() => {
+      pendingRequests--;
+      hideGlobalLoader();
+    });
+};
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 // ---- Inline YouTube player -------------------------------------------------
@@ -110,6 +176,8 @@ async function load(opts = {}) {
     const qs = new URLSearchParams(params);
     d = await api(`/view/${encodeURIComponent(token)}?${qs}`);
   } catch (e) {
+    const vLoad = $('#viewLoading');
+    if (vLoad) vLoad.style.display = 'none';
     $('#content').style.display = 'none';
     const err = $('#error');
     err.style.display = 'block';
@@ -123,6 +191,8 @@ function render(d, opts) {
   lastData = d;
   document.title = `${d.college.name} — Progress`;
   $('#collegeName').textContent = d.college.name;
+  const vLoad = $('#viewLoading');
+  if (vLoad) vLoad.style.display = 'none';
   $('#error').style.display = 'none';
   $('#content').style.display = 'block';
   dash.total = d.total;
@@ -748,12 +818,13 @@ function renderStudentPracticeSection(containerEl, practiceList, options = {}) {
 }
 
 async function openStudent(id) {
-  // Instant visual feedback: open drawer immediately with loading indicator
+  // Instant visual feedback: open drawer immediately with animated loader and skeleton
   $('#drawerContent').innerHTML = `
-    <div style="padding:32px 16px;text-align:center;color:var(--muted)">
-      <div style="font-size:26px;margin-bottom:10px">⚡</div>
-      <p style="margin:0;font-size:13px">Loading student profile…</p>
-    </div>`;
+    <div class="spinner-wrap" style="padding:32px 16px">
+      <div class="spinner spinner-lg"></div>
+      <p style="margin:0;font-size:13px;font-weight:500">Loading student profile…</p>
+    </div>
+    ${drawerSkeletonHtml()}`;
   $('#drawer').classList.add('open');
   $('#drawerBackdrop').classList.add('show');
 

@@ -4,11 +4,39 @@
 const $ = (s) => document.querySelector(s);
 const token = decodeURIComponent(location.pathname.split('/q/')[1] || '').replace(/\/+$/, '');
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-const api = (path) => fetch('/api' + path).then(async (r) => {
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-  return d;
-});
+let pendingRequests = 0;
+function showGlobalLoader() {
+  let bar = $('#globalTopLoader');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'globalTopLoader';
+    bar.className = 'top-loader';
+    document.body.appendChild(bar);
+  }
+  bar.classList.add('active');
+}
+function hideGlobalLoader() {
+  if (pendingRequests <= 0) {
+    pendingRequests = 0;
+    const bar = $('#globalTopLoader');
+    if (bar) bar.classList.remove('active');
+  }
+}
+
+const api = (path) => {
+  pendingRequests++;
+  showGlobalLoader();
+  return fetch('/api' + path)
+    .then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      return d;
+    })
+    .finally(() => {
+      pendingRequests--;
+      hideGlobalLoader();
+    });
+};
 
 // ---- Inline YouTube player -------------------------------------------------
 function ytEmbed(url) {
