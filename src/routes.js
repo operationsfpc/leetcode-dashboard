@@ -78,7 +78,7 @@ function isPublicReq(req) {
   if (m === 'GET' && /\/colleges\/\d+\/options$/.test(p)) return true;    // student register dropdowns
   if (m === 'POST' && (p === '/student/login' || p === '/student/register' || p.includes('student/login') || p.includes('student/register'))) return true;
   if (m === 'GET' && /\/student\/\d+\/dashboard$/.test(p)) return true;
-  if ((m === 'GET' || m === 'POST') && /\/view\/[^/]+(\/student\/\d+|\/practice-completers|\/practice\/\d+\/completion|\/sync|\/sync-state)?$/.test(p)) return true; // shared read-only link + scoped sync
+  if (['GET', 'POST', 'PATCH', 'PUT'].includes(m) && /\/view\/[^/]+(\/students?(\/\d+)?|\/practice-completers|\/practice\/\d+\/completion|\/sync|\/sync-state)?$/.test(p)) return true; // shared read-only link + scoped sync + student check & update
   if (m === 'GET' && /\/public\/practice\/[^/]+$/.test(p)) return true; // public questions-only list
   return false;
 }
@@ -835,7 +835,7 @@ router.delete('/students/:id', h(async (req, res) => {
   res.json({ ok: true });
 }));
 
-const handleUpdateStudent = async (req, res) => {
+async function handleUpdateStudent(req, res) {
   const studentId = Number(req.params.id);
   const existing = await store.getStudent(studentId);
   if (!existing) return res.status(404).json({ error: 'Student not found.' });

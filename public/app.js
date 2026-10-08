@@ -1283,6 +1283,9 @@ async function openEditStudentModal(id) {
   $('#editStudentSection').value = student.section || '';
   $('#editStudentYear').value = student.year || '';
   $('#editStudentCampus').value = student.campus || '';
+  if (student.college_id) {
+    loadEditStudentOptions(student.college_id);
+  }
 
   $('#editStudentModalTitle').textContent = `Edit Student · ${student.name || ''}`;
   $('#editStudentModalBackdrop')?.classList.add('open');
@@ -2060,11 +2063,21 @@ async function loadSSOptions() {
   if (!id) { state.ssOptions = { departments: [], batches: [], campuses: [], years: [] }; return; }
   try { state.ssOptions = await api(`/colleges/${id}/options`); } catch {}
 }
+state.editStudentOptions = { departments: [], batches: [], campuses: [], years: [] };
+async function loadEditStudentOptions(collegeId) {
+  if (!collegeId) { state.editStudentOptions = { departments: [], batches: [], campuses: [], years: [] }; return; }
+  try { state.editStudentOptions = await api(`/colleges/${collegeId}/options`); } catch {}
+}
 attachCombo('#ssDept', () => state.ssOptions.departments || []);
 attachCombo('#ssSection', () => state.ssOptions.batches || []);
 attachCombo('#ssYear', () => state.ssOptions.years || []);
 attachCombo('#ssCampus', () => state.ssOptions.campuses || []);
 $('#singleStudentCollege')?.addEventListener('change', loadSSOptions);
+
+attachCombo('#editStudentDept', () => state.editStudentOptions.departments || []);
+attachCombo('#editStudentSection', () => state.editStudentOptions.batches || []);
+attachCombo('#editStudentYear', () => state.editStudentOptions.years || []);
+attachCombo('#editStudentCampus', () => state.editStudentOptions.campuses || []);
 
 // Add a single question (own link + topic + difficulty).
 // Per-college "show video links to students" toggle.
